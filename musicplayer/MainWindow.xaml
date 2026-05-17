@@ -1,0 +1,99 @@
+﻿<Window x:Class="musicplayer.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:local="clr-namespace:musicplayer"
+        xmlns:userControls="clr-namespace:musicplayer.View.UserControls"
+        xmlns:shell="clr-namespace:System.Windows.Shell;assembly=PresentationFramework"
+        mc:Ignorable="d" WindowStyle="None"
+        ResizeMode="CanResize"
+        Foreground="White"
+        FontFamily="pack://applications:,,,/Assets/Fonts/#StretchPro"
+        PreviewKeyDown="Window_PreviewKeyDown"
+        
+        Title="Music Player" Height="627" Width="1302"
+        WindowStartupLocation="CenterScreen" WindowState="Maximized">
+
+    <Window.TaskbarItemInfo>
+        <shell:TaskbarItemInfo>
+            <shell:TaskbarItemInfo.ThumbButtonInfos>
+                <shell:ThumbButtonInfoCollection>
+
+                    <shell:ThumbButtonInfo Description="Previous"
+                                       ImageSource="/assets/icons/fast-backward-256.png"
+                                       Click="TaskbarPrev_Click"/>
+
+                    <shell:ThumbButtonInfo x:Name="TaskbarPlayPauseButton"
+                                       Description="Play/Pause"
+                                       ImageSource="/assets/icons/play-256.png"
+                                       Click="TaskbarPlayPause_Click"/>
+
+                    <shell:ThumbButtonInfo Description="Next"
+                                       ImageSource="/assets/icons/fast-forward-256.png"
+                                       Click="TaskbarNext_Click"/>
+
+                </shell:ThumbButtonInfoCollection>
+            </shell:TaskbarItemInfo.ThumbButtonInfos>
+        </shell:TaskbarItemInfo>
+    </Window.TaskbarItemInfo>
+
+    <!-- Remove white bar on top-->
+    <WindowChrome.WindowChrome>
+        <WindowChrome x:Name="MainWindowChrome"
+                  GlassFrameThickness="0"
+                  CornerRadius="0"
+                  CaptionHeight="0"
+                  ResizeBorderThickness="5"/>
+    </WindowChrome.WindowChrome>
+
+    <Border Name="RootBorder" Background="Black">
+        <Grid>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="40"/>
+                <RowDefinition/>
+                <RowDefinition Height="160"/>
+                <RowDefinition Height="20"/>
+            </Grid.RowDefinitions>
+
+            <!-- Menu Bar -->
+            <userControls:MenuBar Grid.Row="0"
+                      Height="40"
+                      VerticalAlignment="Stretch"/>
+
+            <!-- Album Information Bar -->
+            <Grid Grid.Row="1">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="30*"/>
+                    <ColumnDefinition Width="70*"/>
+                </Grid.ColumnDefinitions>
+                <!-- All Albums -->
+                <userControls:AlbumGrid x:Name="AlbumGridControl" Grid.Column="0"/>
+                <!-- Selected Album Information-->
+                <userControls:AlbumCard x:Name="AlbumCardControl" Grid.Column="1"/>
+            </Grid>
+
+            <!-- Interactive Bar -->
+            <userControls:PlayerBar x:Name="PlayerBarControl" Grid.Row="2"/>
+
+            <!-- Status Bar -->
+            <Grid Grid.Row="3">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="773*"/>
+                    <ColumnDefinition Width="529*"/>
+                </Grid.ColumnDefinitions>
+                <Rectangle Fill="DarkSlateGray" RadiusY="5" Grid.ColumnSpan="2"/>
+
+                <TextBlock Text="v0.5.0"
+               Foreground="#1f3f3f"
+               FontSize="12"
+               FontWeight="Bold"
+               VerticalAlignment="Center"
+               HorizontalAlignment="Left"
+               Margin="485,0,0,0" Grid.Column="1"/>
+            </Grid>
+
+        </Grid>
+    </Border>
+
+</Window>

@@ -1,0 +1,48 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <UseWPF>true</UseWPF>
+    <ApplicationIcon>assets\icons\mlogoround.ico</ApplicationIcon>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <None Remove="assets\fonts\Neuropol.otf" />
+    <None Remove="assets\fonts\StretchPro.otf" />
+    <None Remove="assets\icons\fast-backward-256.png" />
+    <None Remove="assets\icons\fast-forward-256.png" />
+    <None Remove="assets\icons\heart_filled.png" />
+    <None Remove="assets\icons\heart_hollow.png" />
+    <None Remove="assets\icons\pause-256.png" />
+    <None Remove="assets\icons\play-256.png" />
+    <None Remove="assets\icons\plus-256.png" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Resource Include="assets\icons\fast-backward-256.png" />
+    <Resource Include="assets\icons\heart_filled.png" />
+    <Resource Include="assets\icons\heart_hollow.png" />
+    <Resource Include="assets\icons\plus-256.png" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Resource Include="assets\icons\mlogoround.ico" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="NAudio" Version="2.3.0" />
+    <PackageReference Include="TagLibSharp" Version="2.3.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Resource Include="assets\fonts\Neuropol.otf" />
+    <Resource Include="assets\fonts\StretchPro.otf" />
+    <Resource Include="assets\icons\fast-forward-256.png" />
+    <Resource Include="assets\icons\pause-256.png" />
+    <Resource Include="assets\icons\play-256.png" />
+  </ItemGroup>
+
+</Project>
