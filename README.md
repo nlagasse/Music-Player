@@ -17,8 +17,6 @@ Everything I used to make this project was entirely self taught and new to me, a
 
 Middle Mouse Button on an album in your library - This will instantly start playing the album, no need to left mouse button click and press a second button to start playing an album. 
 
-Middle Mouse Button on the bottom left album art - This will bring back whichever album is currently playing to the large album previewer, in case you get sidetracked with browsing other albums and want to immediately get back to the current album. 
-
 Mouse scrolling on the entire player bar row - This will let you change the volume from anywhere on the bar, so you don't have to track down the volume slider and drag it. Unless you'd like to!
 
 More to come soon!
