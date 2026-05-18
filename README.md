@@ -5,5 +5,7 @@ Music player inspired by Spotify for organizing and playing locally owned music.
 
 <img width="1918" height="1137" alt="musicplayer-v0 5 0" src="https://github.com/user-attachments/assets/919e6691-6afb-42c1-881d-c57018caf873" />
 
+* Every album added needs at least one song (MP3 or FLAC) and one album art (PNG or JPG or JPEG) included!
+
 Everything I used to make this project was entirely self taught and new to me, as I had no prior experience in developing a Windows desktop application from scratch, nor experience with WPF, C#, JSON databases, or UX.
 
