@@ -1,10 +1,6 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using System.Collections.ObjectModel;
+﻿using System.Collections.ObjectModel;
 
+// Album representation 
 namespace musicplayer.Models
 {
     public class Album
@@ -18,6 +14,9 @@ namespace musicplayer.Models
         public List<string> AlbumArtPaths { get; set; } = new List<string>();
         public int PlayerArtIndex { get; set; } = 1;
         public long LastPlayedUtcTicks { get; set; } = 0;
+        public bool IsPlaylist { get; set; } = false;
+        public long CreatedUtcTicks { get; set; } = DateTime.UtcNow.Ticks;
+        public bool HasCustomTitle { get; set; } = false;
 
         public ObservableCollection<Song> Songs { get; set; } = new ObservableCollection<Song>();
 

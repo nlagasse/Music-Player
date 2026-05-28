@@ -1,6 +1,6 @@
 ﻿using NAudio.Wave;
-using System;
 
+// Audio playback using NAudio 
 namespace musicplayer.Services
 {
     public class AudioPlayerService : IDisposable
@@ -51,6 +51,30 @@ namespace musicplayer.Services
             {
                 if (audioFile != null)
                     audioFile.Volume = value;
+            }
+        }
+
+        public int SampleRate
+        {
+            get
+            {
+                return audioFile?.WaveFormat.SampleRate ?? 0;
+            }
+        }
+
+        public int Channels
+        {
+            get
+            {
+                return audioFile?.WaveFormat.Channels ?? 0;
+            }
+        }
+
+        public int LatencyMilliseconds
+        {
+            get
+            {
+                return outputDevice?.DesiredLatency ?? 0;
             }
         }
 

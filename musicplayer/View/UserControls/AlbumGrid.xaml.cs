@@ -1,23 +1,19 @@
 ﻿using Microsoft.Win32;
 using musicplayer.Models;
-using System;
 using System.IO;
-using System.Linq;
+using System.Text.RegularExpressions;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
-using System.Collections.Generic;
-using System.Text.RegularExpressions;
-using TagLib;
+using System.Windows.Controls.Primitives;
+using Microsoft.VisualBasic;
+
+using musicplayer.Services;
 
 namespace musicplayer.View.UserControls
 {
-    /// <summary>
-    /// Interaction logic for AlbumGrid.xaml
-    /// </summary>
-
     public partial class AlbumGrid : UserControl
     {
         private Album? selectedAlbum;
@@ -47,7 +43,7 @@ namespace musicplayer.View.UserControls
 
                 foreach (string folderPath in folderPaths)
                 {
-                    Album? album = CreateAlbumFromFolder(folderPath);
+                    Album? album = AlbumImportService.CreateAlbumFromFolder(folderPath);
 
                     if (album == null)
                         continue;
@@ -79,127 +75,20 @@ namespace musicplayer.View.UserControls
             LikedOnlyModeChanged?.Invoke(likedOnlyMode);
         }
 
-        private Album? CreateAlbumFromFolder(string folderPath)
-        {
-            List<string> albumArtPaths = GetAlbumArtPaths(folderPath);
-
-            if (albumArtPaths.Count == 0)
-            {
-                MessageBox.Show(
-                    "No jpg or png image found in this folder:\n" + folderPath,
-                    "Missing Album Art",
-                    MessageBoxButton.OK,
-                    MessageBoxImage.Warning
-                );
-
-                return null;
-            }
-
-            Album album = new Album
-            {
-                Title = Path.GetFileName(folderPath),
-                Artist = "Unknown Artist",
-                FolderPath = folderPath,
-                CoverPath = albumArtPaths[0],
-                BackCoverPath = albumArtPaths.Count > 1 ? albumArtPaths[1] : "",
-                AlbumArtPaths = albumArtPaths
-            };
-
-            List<Song> songs = Directory.GetFiles(folderPath)
-            .Where(file =>
-                file.EndsWith(".mp3", StringComparison.OrdinalIgnoreCase) ||
-                file.EndsWith(".flac", StringComparison.OrdinalIgnoreCase))
-            .Select(CreateSongFromFile)
-            .OrderBy(song => song.TrackNumber == 0 ? uint.MaxValue : song.TrackNumber)
-            .ThenBy(song => song.FilePath)
-            .ToList();
-
-            foreach (Song song in songs)
-            {
-                album.Songs.Add(song);
-            }
-
-            Song? firstSongWithArtist = songs.FirstOrDefault(song => !string.IsNullOrWhiteSpace(song.Artist));
-
-            if (firstSongWithArtist != null)
-                album.Artist = firstSongWithArtist.Artist;
-            else
-                album.Artist = "Unknown Artist";
-
-            Song? firstSongWithYear = songs.FirstOrDefault(song => song.ReleaseYear > 0);
-
-            if (firstSongWithYear != null)
-                album.ReleaseYear = firstSongWithYear.ReleaseYear;
-
-            album.Title = CleanAlbumTitle(album.Title, album.Artist, album.ReleaseYear);
-
-            return album;
-        }
-
-        private List<string> GetAlbumArtPaths(string folderPath)
-        {
-            List<string> imageFiles = Directory.GetFiles(folderPath)
-            .Where(file =>
-                file.EndsWith(".jpg", StringComparison.OrdinalIgnoreCase) ||
-                file.EndsWith(".jpeg", StringComparison.OrdinalIgnoreCase) ||
-                file.EndsWith(".png", StringComparison.OrdinalIgnoreCase))
-            .OrderBy(file => file)
-            .ToList();
-
-            if (imageFiles.Count == 0)
-                return new List<string>();
-
-            string? frontCover = imageFiles.FirstOrDefault(file =>
-                Path.GetFileNameWithoutExtension(file).Equals("cover", StringComparison.OrdinalIgnoreCase) ||
-                Path.GetFileNameWithoutExtension(file).Equals("front", StringComparison.OrdinalIgnoreCase));
-
-            string? backCover = imageFiles.FirstOrDefault(file =>
-                Path.GetFileNameWithoutExtension(file).Equals("back", StringComparison.OrdinalIgnoreCase));
-
-            List<string> sortedArt = new List<string>();
-
-            if (frontCover != null)
-            {
-                sortedArt.Add(frontCover);
-            }
-            else
-            {
-                sortedArt.Add(imageFiles[0]);
-            }
-
-            if (backCover != null && backCover != sortedArt[0])
-            {
-                sortedArt.Add(backCover);
-            }
-            else
-            {
-                string? secondImage = imageFiles.FirstOrDefault(file => file != sortedArt[0]);
-
-                if (secondImage != null)
-                    sortedArt.Add(secondImage);
-            }
-
-            foreach (string imageFile in imageFiles)
-            {
-                if (!sortedArt.Contains(imageFile))
-                    sortedArt.Add(imageFile);
-            }
-
-            return sortedArt;
-        }
-
         public void RefreshAlbumOrder()
         {
             AlbumsPanel.Children.Clear();
 
             List<Album> sortedAlbums = AppData.Library.Albums
                 .OrderByDescending(album => album.LastPlayedUtcTicks)
+                .ThenByDescending(album => album.IsPlaylist)
+                .ThenBy(album => album.IsPlaylist ? album.CreatedUtcTicks : 0)
                 .ThenBy(album => album.Title)
                 .ToList();
 
             foreach (Album album in sortedAlbums)
             {
-                if (!System.IO.File.Exists(album.CoverPath))
+                if (!album.IsPlaylist && !System.IO.File.Exists(album.CoverPath))
                     continue;
 
                 AddAlbumArtToGrid(album);
@@ -234,27 +123,52 @@ namespace musicplayer.View.UserControls
             ToolTipService.SetShowDuration(albumBorder, 5000);
             ToolTipService.SetBetweenShowDelay(albumBorder, 100);
 
-            BitmapImage coverImage = new BitmapImage();
-            coverImage.BeginInit();
-            coverImage.UriSource = new Uri(album.CoverPath);
-            coverImage.CacheOption = BitmapCacheOption.OnLoad;
-            coverImage.EndInit();
-            coverImage.Freeze();
+            UIElement albumVisual;
 
-            Image albumImage = new Image
+            if (!string.IsNullOrWhiteSpace(album.CoverPath) && System.IO.File.Exists(album.CoverPath))
             {
-                Source = coverImage,
-                Stretch = Stretch.UniformToFill
-            };
+                BitmapImage coverImage = ImageService.LoadImage(album.CoverPath);
 
-            RenderOptions.SetBitmapScalingMode(albumImage, BitmapScalingMode.HighQuality);
-            RenderOptions.SetEdgeMode(albumImage, EdgeMode.Unspecified);
+                Image albumImage = new Image
+                {
+                    Source = coverImage,
+                    Stretch = Stretch.UniformToFill
+                };
+
+                RenderOptions.SetBitmapScalingMode(albumImage, BitmapScalingMode.HighQuality);
+                RenderOptions.SetEdgeMode(albumImage, EdgeMode.Unspecified);
+
+                albumVisual = albumImage;
+            }
+            else
+            {
+                        albumVisual = new Grid
+                        {
+                            Background = new SolidColorBrush(Color.FromRgb(24, 51, 51)),
+                            Children =
+                        {
+
+                        new TextBlock
+                        {
+                            Text = album.IsPlaylist ? album.Title : "No Art",
+                            Foreground = Brushes.White,
+                            FontSize = 14,
+                            FontWeight = FontWeights.Bold,
+                            HorizontalAlignment = HorizontalAlignment.Center,
+                            VerticalAlignment = VerticalAlignment.Center,
+                            TextAlignment = TextAlignment.Center,
+                            TextWrapping = TextWrapping.Wrap,
+                            Margin = new Thickness(6)
+                        }
+                    }
+                };
+            }
 
             Border imageBorder = new Border
             {
                 CornerRadius = new CornerRadius(4),
                 ClipToBounds = true,
-                Child = albumImage
+                Child = albumVisual
             };
 
             albumBorder.Child = imageBorder;
@@ -270,6 +184,38 @@ namespace musicplayer.View.UserControls
             };
 
             ContextMenu contextMenu = new ContextMenu();
+
+            if (album.IsPlaylist)
+            {
+                MenuItem addArtMenuItem = new MenuItem
+                {
+                    Header = "Add album art"
+                };
+
+                addArtMenuItem.Click += (sender, e) =>
+                {
+                    OpenFileDialog openFileDialog = new OpenFileDialog();
+                    openFileDialog.Title = "Select playlist artwork";
+                    openFileDialog.Filter = "Image files (*.jpg;*.jpeg;*.png)|*.jpg;*.jpeg;*.png|All files (*.*)|*.*";
+
+                    if (openFileDialog.ShowDialog() == true)
+                    {
+                        album.CoverPath = openFileDialog.FileName;
+                        album.BackCoverPath = openFileDialog.FileName;
+                        album.AlbumArtPaths = new List<string> { openFileDialog.FileName };
+
+                        LibraryStorage.SaveLibrary();
+                        RefreshAlbumOrder();
+
+                        if (selectedAlbum == album)
+                            SelectedAlbumChanged?.Invoke(album);
+                    }
+
+                    e.Handled = true;
+                };
+
+                contextMenu.Items.Add(addArtMenuItem);
+            }
 
             MenuItem removeMenuItem = new MenuItem
             {
@@ -322,17 +268,7 @@ namespace musicplayer.View.UserControls
                     songToPlay = album.Songs.FirstOrDefault(song => song.IsLiked);
 
                     if (songToPlay == null)
-                    {
-                        MessageBox.Show(
-                            "No songs are liked, so liked song autoplay cannot play!",
-                            "No Liked Songs",
-                            MessageBoxButton.OK,
-                            MessageBoxImage.Warning
-                        );
-
-                        e.Handled = true;
-                        return;
-                    }
+                        songToPlay = album.Songs.FirstOrDefault();
                 }
                 else
                 {
@@ -356,12 +292,13 @@ namespace musicplayer.View.UserControls
             if (!Directory.Exists(savedAlbum.FolderPath))
                 return;
 
-            Album? refreshedAlbum = CreateAlbumFromFolder(savedAlbum.FolderPath);
+            Album? refreshedAlbum = AlbumImportService.CreateAlbumFromFolder(savedAlbum.FolderPath);
 
             if (refreshedAlbum == null)
                 return;
 
-            savedAlbum.Title = refreshedAlbum.Title;
+            if (!savedAlbum.HasCustomTitle)
+                savedAlbum.Title = refreshedAlbum.Title;
             savedAlbum.Artist = refreshedAlbum.Artist;
             savedAlbum.ReleaseYear = refreshedAlbum.ReleaseYear;
             savedAlbum.CoverPath = refreshedAlbum.CoverPath;
@@ -406,111 +343,21 @@ namespace musicplayer.View.UserControls
 
         }
 
-        private Song CreateSongFromFile(string songFile)
-        {
-            string fileNameTitle = Path.GetFileNameWithoutExtension(songFile);
 
-            try
-            {
-                TagLib.File tagFile = TagLib.File.Create(songFile);
 
-                string title = tagFile.Tag.Title;
-
-                if (string.IsNullOrWhiteSpace(title))
-                    title = fileNameTitle;
-
-                string artist = "";
-
-                if (tagFile.Tag.Performers.Length > 0)
-                    artist = tagFile.Tag.Performers[0];
-                else if (tagFile.Tag.AlbumArtists.Length > 0)
-                    artist = tagFile.Tag.AlbumArtists[0];
-
-                title = CleanSongTitle(title, artist);
-
-                return new Song
-                {
-                    Title = title,
-                    Artist = artist,
-                    ReleaseYear = tagFile.Tag.Year,
-                    FilePath = songFile,
-                    TrackNumber = tagFile.Tag.Track,
-                    Duration = tagFile.Properties.Duration
-                };
-            }
-            catch
-            {
-                return new Song
-                {
-                    Title = CleanSongTitle(fileNameTitle, ""),
-                    Artist = "",
-                    ReleaseYear = 0,
-                    FilePath = songFile,
-                    TrackNumber = 0,
-                    Duration = TimeSpan.Zero
-                };
-            }
-        }
-
-        private string CleanSongTitle(string title, string artist)
-        {
-            if (string.IsNullOrWhiteSpace(title))
-                return "";
-
-            string originalTitle = title.Trim();
-            string cleanedTitle = originalTitle;
-
-            // Removes leading track numbers like:
-            // "1. Song"
-            // "01 - Song"
-            // "03_ Song"
-            // "9) Song"
-            // "1 Song"
-            //
-            // But if the whole title is just "4", keep it.
-            cleanedTitle = Regex.Replace(
-                cleanedTitle,
-                @"^\s*\d+\s*(?:[._)-]\s*|\s+)",
-                ""
-            );
-
-            if (string.IsNullOrWhiteSpace(cleanedTitle))
-                cleanedTitle = originalTitle;
-
-            if (!string.IsNullOrWhiteSpace(artist))
-            {
-                string escapedArtist = Regex.Escape(artist.Trim());
-
-                cleanedTitle = Regex.Replace(
-                    cleanedTitle,
-                    @"^\s*" + escapedArtist + @"\s*[-–—_]\s*",
-                    "",
-                    RegexOptions.IgnoreCase
-                );
-
-                cleanedTitle = Regex.Replace(
-                    cleanedTitle,
-                    @"\s*[-–—_]\s*" + escapedArtist + @"\s*$",
-                    "",
-                    RegexOptions.IgnoreCase
-                );
-            }
-
-            if (string.IsNullOrWhiteSpace(cleanedTitle))
-                cleanedTitle = originalTitle;
-
-            return cleanedTitle.Trim();
-        }
         public void LoadSavedAlbums()
         {
             AlbumsPanel.Children.Clear();
 
             foreach (Album album in AppData.Library.Albums)
             {
-                RefreshSavedAlbumFromFolder(album);
+                if (!album.IsPlaylist)
+                {
+                    RefreshSavedAlbumFromFolder(album);
 
-                if (!System.IO.File.Exists(album.CoverPath))
-                    continue;
+                    if (!System.IO.File.Exists(album.CoverPath))
+                        continue;
+                }
             }
 
             RefreshAlbumOrder();
@@ -525,6 +372,9 @@ namespace musicplayer.View.UserControls
 
             // Do not clear when clicking the Add button or context menu buttons.
             if (FindParent<Button>(source) != null)
+                return;
+
+            if (FindParent<ScrollBar>(source) != null)
                 return;
 
             // Do not clear when clicking an actual album cover.
@@ -567,88 +417,70 @@ namespace musicplayer.View.UserControls
             return null;
         }
 
-        private string CleanAlbumTitle(string title, string artist, uint releaseYear)
+        public void AddAlbumFromFolderPath(string folderPath)
         {
-            if (string.IsNullOrWhiteSpace(title))
-                return "";
+            if (!Directory.Exists(folderPath))
+                return;
 
-            string originalTitle = title.Trim();
-            string cleanedTitle = originalTitle;
+            Album? album = AlbumImportService.CreateAlbumFromFolder(folderPath);
 
-            if (!string.IsNullOrWhiteSpace(artist))
-            {
-                string escapedArtist = Regex.Escape(artist.Trim());
+            if (album == null)
+                return;
 
-                // Artist | Year | Album
-                // Artist - Year - Album
-                // Artist_Year_Album
-                cleanedTitle = Regex.Replace(
-                    cleanedTitle,
-                    @"^\s*" + escapedArtist + @"\s*[-–—|_]+\s*(19|20)\d{2}\s*[-–—|_]+\s*",
-                    "",
-                    RegexOptions.IgnoreCase
-                );
+            AppData.Library.Albums.Add(album);
+            LibraryStorage.SaveLibrary();
 
-                // Artist - Album
-                cleanedTitle = Regex.Replace(
-                    cleanedTitle,
-                    @"^\s*" + escapedArtist + @"\s*[-–—|_]+\s*",
-                    "",
-                    RegexOptions.IgnoreCase
-                );
-
-                // Album - Artist
-                cleanedTitle = Regex.Replace(
-                    cleanedTitle,
-                    @"\s*[-–—|_]+\s*" + escapedArtist + @"\s*$",
-                    "",
-                    RegexOptions.IgnoreCase
-                );
-            }
-
-            // Remove years in brackets/parentheses:
-            // (2005) Album -> Album
-            // Album (2005) -> Album
-            cleanedTitle = Regex.Replace(
-                cleanedTitle,
-                @"\s*[\[\(]\s*(19|20)\d{2}\s*[\]\)]\s*",
-                " ",
-                RegexOptions.IgnoreCase
-            );
-
-            // Remove year at beginning:
-            // 2003 - Album
-            // 2003 Album
-            cleanedTitle = Regex.Replace(
-                cleanedTitle,
-                @"^\s*(19|20)\d{2}\s*[-–—|_]*\s*",
-                "",
-                RegexOptions.IgnoreCase
-            );
-
-            // Remove year at end:
-            // Album - 2003
-            // Album 2003
-            cleanedTitle = Regex.Replace(
-                cleanedTitle,
-                @"\s*[-–—|_]*\s*(19|20)\d{2}\s*$",
-                "",
-                RegexOptions.IgnoreCase
-            );
-
-            // Clean leftover separators at beginning/end.
-            cleanedTitle = Regex.Replace(cleanedTitle, @"^\s*[-–—|_]+\s*", "");
-            cleanedTitle = Regex.Replace(cleanedTitle, @"\s*[-–—|_]+\s*$", "");
-
-            cleanedTitle = Regex.Replace(cleanedTitle, @"\s{2,}", " ").Trim();
-
-            // Self-titled fallback:
-            // If removing artist/year made the title empty, keep artist as album title.
-            if (string.IsNullOrWhiteSpace(cleanedTitle) && !string.IsNullOrWhiteSpace(artist))
-                cleanedTitle = artist.Trim();
-
-            return cleanedTitle;
+            RefreshAlbumOrder();
         }
+
+        public Song? CreateSongFromFilePath(string filePath)
+        {
+            return AlbumImportService.CreateSongFromFilePath(filePath);
+        }
+
+        public bool IsAudioFile(string filePath)
+        {
+            return MetadataCleanup.IsAudioFile(filePath);
+        }
+
+        private void AlbumsScrollViewer_PreviewMouseWheel(object sender, MouseWheelEventArgs e)
+        {
+            if (sender is not ScrollViewer scrollViewer)
+                return;
+
+            double scrollAmount = e.Delta > 0 ? -36 : 36;
+
+            scrollViewer.ScrollToVerticalOffset(scrollViewer.VerticalOffset + scrollAmount);
+
+            e.Handled = true;
+        }
+
+        private void CreatePlaylistButton_Click(object sender, RoutedEventArgs e)
+        {
+            int playlistNumber = AppData.Library.Albums.Count(album => album.IsPlaylist) + 1;
+
+            Album playlist = new Album
+            {
+                Title = "Playlist " + playlistNumber,
+                Artist = "Playlist",
+                ReleaseYear = 0,
+                FolderPath = "",
+                CoverPath = "",
+                BackCoverPath = "",
+                AlbumArtPaths = new List<string>(),
+                IsPlaylist = true,
+                CreatedUtcTicks = DateTime.UtcNow.Ticks
+            };
+
+            AppData.Library.Albums.Add(playlist);
+            LibraryStorage.SaveLibrary();
+
+            RefreshAlbumOrder();
+
+            selectedAlbum = playlist;
+            SelectedAlbumChanged?.Invoke(playlist);
+        }
+
 
     }
 }

@@ -38,7 +38,6 @@
                                  BorderBrush="Transparent"
                                  Padding="8,4"
                                  FontSize="12">
-                                Play liked songs only
                             </ToolTip>
                         </Button.ToolTip>
 
@@ -82,6 +81,62 @@
                         <Image Name="LikedOnlyIcon"
                            Source="/assets/icons/heart_hollow.png"
                            Stretch="Uniform"/>
+                    </Button>
+                    
+                    <!-- Playlist Button -->
+                    <Button Name="CreatePlaylistButton"
+                        Width="Auto"
+                        Height="40"
+                        Padding="10,4"
+                        Margin="0,0,8,0"
+                        Background="Transparent"
+                        BorderThickness="0"
+                        Cursor="Hand"
+                        Click="CreatePlaylistButton_Click">
+
+                        <Button.Style>
+                            <Style TargetType="Button">
+                                <Setter Property="Background" Value="Transparent"/>
+                                <Setter Property="BorderBrush" Value="Transparent"/>
+                                <Setter Property="BorderThickness" Value="0"/>
+                                <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
+
+                                <Setter Property="Template">
+                                    <Setter.Value>
+                                        <ControlTemplate TargetType="Button">
+                                            <Border x:Name="ButtonBorder"
+                                                Background="{TemplateBinding Background}"
+                                                CornerRadius="6"
+                                                Padding="{TemplateBinding Padding}">
+                                                <ContentPresenter HorizontalAlignment="Center"
+                                              VerticalAlignment="Center"/>
+                                            </Border>
+
+                                            <ControlTemplate.Triggers>
+                                                <Trigger Property="IsMouseOver" Value="True">
+                                                    <Setter TargetName="ButtonBorder"
+                                                    Property="Background"
+                                                    Value="#202124"/>
+                                                </Trigger>
+
+                                                <Trigger Property="IsPressed" Value="True">
+                                                    <Setter TargetName="ButtonBorder"
+                                        Property="Background"
+                                        Value="#2A2B2E"/>
+                                                </Trigger>
+                                            </ControlTemplate.Triggers>
+                                        </ControlTemplate>
+                                    </Setter.Value>
+                                </Setter>
+                            </Style>
+                        </Button.Style>
+
+                        <TextBlock Text="Playlist"
+                           FontSize="25"
+                           Foreground="White"
+                           FontWeight="ExtraBold"
+                           VerticalAlignment="Center"
+                           HorizontalAlignment="Center"/>
                     </Button>
 
                     <!-- Add button -->
@@ -145,7 +200,9 @@
 
             <!-- Albums -->
             <ScrollViewer Grid.Row="1" Background="Transparent"
-              VerticalScrollBarVisibility="Hidden"
+              VerticalScrollBarVisibility="Auto"
+              Padding="0,0,4,0"
+              PreviewMouseWheel="AlbumsScrollViewer_PreviewMouseWheel"
               HorizontalScrollBarVisibility="Disabled">
 
                 <WrapPanel Name="AlbumsPanel"

@@ -1,7 +1,7 @@
-﻿using System;
-using System.IO;
+﻿using System.IO;
 using System.Text.Json;
 
+// Storage of albums
 namespace musicplayer.Models
 {
     public static class LibraryStorage

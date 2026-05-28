@@ -17,7 +17,7 @@
         <Grid Grid.Row="0">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="70*"/>
-                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="Auto"  />
             </Grid.ColumnDefinitions>
 
             <Border Name="AlbumInfoBorder"
@@ -47,15 +47,31 @@
                             <RowDefinition Height="Auto"/>
                         </Grid.RowDefinitions>
 
-                        <TextBlock Name="AlbumTitle"
-                           FontSize="40"
-                           Grid.Row="0"
-                           VerticalAlignment="Top"
-                           HorizontalAlignment="Left"
-                           TextWrapping="Wrap"
-                           TextTrimming="CharacterEllipsis"
-                           LineHeight="42"
-                           Margin="0,0,20,0"/>
+                        <Grid Grid.Row="0"
+                            Margin="0,0,20,0">
+
+                            <TextBlock Name="AlbumTitle"
+                               FontSize="40"
+                               VerticalAlignment="Top"
+                               HorizontalAlignment="Left"
+                               TextWrapping="Wrap"
+                               TextTrimming="CharacterEllipsis"
+                               LineHeight="42"
+                               MouseLeftButtonDown="AlbumTitle_MouseLeftButtonDown"/>
+
+                            <TextBox Name="AlbumTitleEdit"
+                                 Visibility="Collapsed"
+                                 FontSize="40"
+                                 Foreground="White"
+                                 Background="#202124"
+                                 BorderBrush="DarkSlateGray"
+                                 BorderThickness="1"
+                                 Padding="4,0"
+                                 TextWrapping="Wrap"
+                                 AcceptsReturn="False"
+                                 KeyDown="AlbumTitleEdit_KeyDown"
+                                 LostFocus="AlbumTitleEdit_LostFocus"/>
+                        </Grid>
 
                         <StackPanel Grid.Row="1"
                                     Orientation="Horizontal"
@@ -92,17 +108,19 @@
                 </Grid>
             </Border>
 
+            <!-- Album Art -->
             <Border Name="AlbumCoverBorder"
                     Grid.Column="1"
                     Margin="10"
                     ClipToBounds="True">
 
                 <Image Name="AlbumCover"
-                       Cursor="Hand"
-                       Stretch="UniformToFill"
-                       RenderOptions.BitmapScalingMode="HighQuality"
-                       HorizontalAlignment="Right"
-                       VerticalAlignment="Top"/>
+                   Cursor="Hand"
+                   Stretch="UniformToFill"
+                   RenderOptions.BitmapScalingMode="HighQuality"
+                   HorizontalAlignment="Right"
+                   VerticalAlignment="Top"
+                   MouseLeftButtonDown="AlbumCover_MouseLeftButtonDown"/>
             </Border>
         </Grid>
 
@@ -113,15 +131,15 @@
               Grid.Column="0"
               FontSize="20"
               Grid.ColumnSpan="2"
-              Margin="8"
+              Margin="8,8,0,8"
               BorderThickness="0"
-              ScrollViewer.VerticalScrollBarVisibility="Hidden"
+              ScrollViewer.VerticalScrollBarVisibility="Auto"
               ScrollViewer.HorizontalScrollBarVisibility="Disabled"
               ScrollViewer.CanContentScroll="False"
+              PreviewMouseWheel="Songs_PreviewMouseWheel"
               ScrollViewer.PanningMode="VerticalOnly"
               Background="Transparent"
-              Foreground="White"
-              PreviewMouseLeftButtonUp="Songs_PreviewMouseLeftButtonUp">
+              Foreground="White">
 
                 <ListView.ItemContainerStyle>
                     <Style TargetType="ListViewItem"
@@ -140,7 +158,12 @@
                 <ListView.ItemTemplate>
                     <DataTemplate>
                         <Grid Height="42"
-                      Background="Transparent">
+                          Background="Transparent"
+                          PreviewMouseLeftButtonDown="SongRow_PreviewMouseLeftButtonDown"
+                          PreviewMouseDown="SongRow_PreviewMouseDown"
+                          ContextMenuOpening="SongRow_ContextMenuOpening">
+
+
 
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="58"/>

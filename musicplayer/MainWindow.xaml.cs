@@ -3,6 +3,7 @@ using System.Windows.Media.Imaging;
 using System.Windows.Interop;
 using musicplayer.Models;
 using System.Runtime.InteropServices;
+using System.IO;
 
 namespace musicplayer
 {
@@ -11,6 +12,7 @@ namespace musicplayer
 
         private musicplayer.Models.Song? currentPlayingSong;
         private musicplayer.Models.Album? selectedAlbum;
+        private bool likedOnlyMode = false;
         public MainWindow()
         {
             InitializeComponent();
@@ -22,13 +24,102 @@ namespace musicplayer
             AlbumGridControl.SelectedAlbumChanged += AlbumGridControl_SelectedAlbumChanged;
             AlbumGridControl.AlbumRemoved += AlbumGridControl_AlbumRemoved;
             AlbumCardControl.SongSelected += AlbumCardControl_SongSelected;
+            AlbumCardControl.SongRemoveRequested += AlbumCardControl_SongRemoveRequested;
             PlayerBarControl.CurrentSongChanged += PlayerBarControl_CurrentSongChanged;
             PlayerBarControl.PlaybackStateChanged += PlayerBarControl_PlaybackStateChanged;
             AlbumGridControl.LikedOnlyModeChanged += AlbumGridControl_LikedOnlyModeChanged;
             AlbumGridControl.AlbumMiddleClickedPlayRequested += AlbumGridControl_AlbumMiddleClickedPlayRequested;
             PlayerBarControl.BackCoverMiddleClicked += PlayerBarControl_BackCoverMiddleClicked;
             PlayerBarControl.AlbumPlaybackStarted += PlayerBarControl_AlbumPlaybackStarted;
+            PlayerBarControl.AudioDebugInfoChanged += PlayerBarControl_AudioDebugInfoChanged;
+            PlayerBarControl.EmptyPlayRequested += PlayerBarControl_EmptyPlayRequested;
+            AlbumCardControl.AlbumRenamed += AlbumCardControl_AlbumRenamed;
 
+
+            SetAlbumPreviewVisible(false);
+
+        }
+
+        private void AlbumCardControl_AlbumRenamed()
+        {
+            AlbumGridControl.RefreshAlbumOrder();
+        }
+
+        private void PlayerBarControl_EmptyPlayRequested()
+        {
+            PlaySelectedAlbumFromStart();
+        }
+
+        private void PlaySelectedAlbumFromStart()
+        {
+            if (selectedAlbum == null)
+                return;
+
+            if (selectedAlbum.Songs.Count == 0)
+                return;
+
+            Song? songToPlay;
+
+            if (likedOnlyMode)
+            {
+                songToPlay = selectedAlbum.Songs.FirstOrDefault(song => song.IsLiked);
+
+                if (songToPlay == null)
+                    songToPlay = selectedAlbum.Songs.FirstOrDefault();
+            }
+            else
+            {
+                songToPlay = selectedAlbum.Songs.FirstOrDefault();
+            }
+
+            if (songToPlay == null)
+                return;
+
+            AlbumCardControl.SetPlayingSong(songToPlay);
+            PlayerBarControl.LoadSong(selectedAlbum, songToPlay);
+        }
+
+        private void AlbumCardControl_SongRemoveRequested(musicplayer.Models.Song? song)
+        {
+            if (selectedAlbum == null || song == null)
+                return;
+
+            selectedAlbum.Songs.Remove(song);
+
+            for (int i = 0; i < selectedAlbum.Songs.Count; i++)
+            {
+                selectedAlbum.Songs[i].TrackNumber = (uint)(i + 1);
+            }
+
+            LibraryStorage.SaveLibrary();
+
+            AlbumCardControl.DisplayAlbum(selectedAlbum);
+            AlbumCardControl.SetPlayingSong(currentPlayingSong);
+        }
+
+        private void SetAlbumPreviewVisible(bool visible)
+        {
+            if (visible)
+            {
+                AlbumGridColumn.Width = new GridLength(30, GridUnitType.Star);
+                AlbumCardColumn.Width = new GridLength(70, GridUnitType.Star);
+                AlbumCardControl.Visibility = Visibility.Visible;
+            }
+            else
+            {
+                AlbumGridColumn.Width = new GridLength(1, GridUnitType.Star);
+                AlbumCardColumn.Width = new GridLength(0);
+                AlbumCardControl.Visibility = Visibility.Collapsed;
+            }
+        }
+
+        private void PlayerBarControl_AudioDebugInfoChanged(
+            int sampleRate,
+            int channels,
+            int? bitrateKbps,
+            int? latencyMs)
+        {
+            AlbumCardControl.SetAudioDebugInfo(sampleRate, channels, bitrateKbps, latencyMs);
         }
 
         private void PlayerBarControl_BackCoverMiddleClicked(musicplayer.Models.Album? album)
@@ -40,6 +131,8 @@ namespace musicplayer
                 return;
 
             selectedAlbum = album;
+
+            SetAlbumPreviewVisible(true);
 
             AlbumCardControl.DisplayAlbum(album);
             AlbumCardControl.SetPlayingSong(currentPlayingSong);
@@ -62,12 +155,29 @@ namespace musicplayer
 
         private void Window_PreviewKeyDown(object sender, System.Windows.Input.KeyEventArgs e)
         {
-            if (e.Key != System.Windows.Input.Key.Space)
+            if (System.Windows.Input.Keyboard.FocusedElement is System.Windows.Controls.TextBox)
                 return;
 
-            PlayerBarControl.TogglePlayPause();
+            if (e.Key == System.Windows.Input.Key.Space)
+            {
+                PlayerBarControl.TogglePlayPause();
+                e.Handled = true;
+                return;
+            }
 
-            e.Handled = true;
+            if (e.Key == System.Windows.Input.Key.Right)
+            {
+                PlayerBarControl.NextSong();
+                e.Handled = true;
+                return;
+            }
+
+            if (e.Key == System.Windows.Input.Key.Left)
+            {
+                PlayerBarControl.PreviousSong();
+                e.Handled = true;
+                return;
+            }
         }
 
         private void PlayerBarControl_CurrentSongChanged(musicplayer.Models.Song? song)
@@ -78,6 +188,7 @@ namespace musicplayer
 
         private void AlbumGridControl_LikedOnlyModeChanged(bool enabled)
         {
+            likedOnlyMode = enabled;
             PlayerBarControl.SetLikedOnlyMode(enabled);
         }
 
@@ -169,6 +280,8 @@ namespace musicplayer
         {
             selectedAlbum = album;
 
+            SetAlbumPreviewVisible(album != null);
+
             AlbumCardControl.DisplayAlbum(album);
             AlbumCardControl.SetPlayingSong(currentPlayingSong);
 
@@ -182,6 +295,12 @@ namespace musicplayer
 
         private void TaskbarPlayPause_Click(object sender, EventArgs e)
         {
+            if (currentPlayingSong == null && selectedAlbum != null)
+            {
+                PlaySelectedAlbumFromStart();
+                return;
+            }
+
             PlayerBarControl.TogglePlayPause();
         }
 
@@ -280,5 +399,85 @@ namespace musicplayer
             public int dwFlags;
         }
 
+        private void Window_PreviewDragOver(object sender, DragEventArgs e)
+        {
+            if (!e.Data.GetDataPresent(DataFormats.FileDrop))
+            {
+                e.Effects = DragDropEffects.None;
+                e.Handled = true;
+                return;
+            }
+
+            string[] paths = (string[])e.Data.GetData(DataFormats.FileDrop);
+
+            bool hasValidDrop = paths.Any(path =>
+                Directory.Exists(path) ||
+                AlbumGridControl.IsAudioFile(path));
+
+            e.Effects = hasValidDrop ? DragDropEffects.Copy : DragDropEffects.None;
+            e.Handled = true;
+        }
+
+        private void Window_Drop(object sender, DragEventArgs e)
+        {
+            if (!e.Data.GetDataPresent(DataFormats.FileDrop))
+                return;
+
+            string[] paths = (string[])e.Data.GetData(DataFormats.FileDrop);
+
+            foreach (string path in paths)
+            {
+                if (Directory.Exists(path))
+                {
+                    AlbumGridControl.AddAlbumFromFolderPath(path);
+                    continue;
+                }
+
+                if (AlbumGridControl.IsAudioFile(path))
+                {
+                    AddDroppedSongToSelectedAlbum(path);
+                }
+            }
+        }
+
+        private void AddDroppedSongToSelectedAlbum(string songFilePath)
+        {
+            if (selectedAlbum == null)
+            {
+                MessageBox.Show(
+                    "Select an album first before dropping a song file.",
+                    "No Album Selected",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Warning
+                );
+
+                return;
+            }
+
+            Song? newSong = AlbumGridControl.CreateSongFromFilePath(songFilePath);
+
+            if (newSong == null)
+                return;
+
+            bool alreadyExists = selectedAlbum.Songs.Any(song =>
+                song.FilePath.Equals(newSong.FilePath, StringComparison.OrdinalIgnoreCase));
+
+            if (alreadyExists)
+                return;
+
+            newSong.TrackNumber = (uint)(selectedAlbum.Songs.Count + 1);
+
+            selectedAlbum.Songs.Add(newSong);
+
+            LibraryStorage.SaveLibrary();
+
+            AlbumCardControl.DisplayAlbum(selectedAlbum);
+            AlbumCardControl.SetPlayingSong(currentPlayingSong);
+        }
+
+        private void PlayerBarControl_Loaded(object sender, RoutedEventArgs e)
+        {
+
+        }
     }
 }
