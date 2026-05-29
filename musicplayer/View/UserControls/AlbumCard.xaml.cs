@@ -449,6 +449,8 @@ namespace musicplayer.View.UserControls
 
             overlayCanvas.Children.Add(albumArtPopupBorder);
 
+            Rect workArea = SystemParameters.WorkArea;
+
             albumArtPopupWindow = new Window
             {
                 WindowStyle = WindowStyle.None,
@@ -461,18 +463,18 @@ namespace musicplayer.View.UserControls
                 WindowStartupLocation = WindowStartupLocation.Manual,
                 Owner = ownerWindow,
 
-                Left = SystemParameters.VirtualScreenLeft,
-                Top = SystemParameters.VirtualScreenTop,
-                Width = SystemParameters.VirtualScreenWidth,
-                Height = SystemParameters.VirtualScreenHeight
+                Left = workArea.Left,
+                Top = workArea.Top,
+                Width = workArea.Width,
+                Height = workArea.Height
             };
 
             // PointToScreen gives physical pixels, so convert to WPF units.
             Point coverScreenPositionPixels = AlbumCover.PointToScreen(new Point(0, 0));
             Point coverScreenPosition = ScreenPixelsToWpfUnits(coverScreenPositionPixels);
 
-            double popupLeft = coverScreenPosition.X - SystemParameters.VirtualScreenLeft;
-            double popupTop = coverScreenPosition.Y - SystemParameters.VirtualScreenTop;
+            double popupLeft = coverScreenPosition.X - workArea.Left;
+            double popupTop = coverScreenPosition.Y - workArea.Top;
 
             popupLeft -= 80;
 

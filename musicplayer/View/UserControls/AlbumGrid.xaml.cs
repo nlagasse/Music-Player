@@ -21,11 +21,27 @@ namespace musicplayer.View.UserControls
         public event Action<Album?>? SelectedAlbumChanged;
         public event Action<bool>? LikedOnlyModeChanged;
         public event Action<Album, Song>? AlbumMiddleClickedPlayRequested;
+        public bool KeepGridExpandedOnMiddleClick { get; set; } = false;
+        public event Action<bool>? ShuffleModeChanged;
 
         private bool likedOnlyMode = false;
+        private bool shuffleMode = false;
+
         public AlbumGrid()
         {
             InitializeComponent();
+        }
+
+        private void ShuffleButton_Click(object sender, RoutedEventArgs e)
+        {
+            shuffleMode = !shuffleMode;
+
+            AppData.Library.ShuffleModeEnabled = shuffleMode;
+            LibraryStorage.SaveLibrary();
+
+            UpdateShuffleIcon();
+
+            ShuffleModeChanged?.Invoke(shuffleMode);
         }
 
         private void AddAlbum_Click(object sender, RoutedEventArgs e)
@@ -61,18 +77,48 @@ namespace musicplayer.View.UserControls
         {
             likedOnlyMode = !likedOnlyMode;
 
-            if (likedOnlyMode)
-            {
-                LikedOnlyIcon.Source =
-                    new BitmapImage(new Uri("/assets/icons/heart_filled.png", UriKind.Relative));
-            }
-            else
-            {
-                LikedOnlyIcon.Source =
-                    new BitmapImage(new Uri("/assets/icons/heart_hollow.png", UriKind.Relative));
-            }
+            AppData.Library.LikedOnlyModeEnabled = likedOnlyMode;
+            LibraryStorage.SaveLibrary();
+
+            UpdateLikedOnlyIcon();
 
             LikedOnlyModeChanged?.Invoke(likedOnlyMode);
+        }
+
+        public void LoadSavedToggleModes()
+        {
+            likedOnlyMode = AppData.Library.LikedOnlyModeEnabled;
+            shuffleMode = AppData.Library.ShuffleModeEnabled;
+
+            UpdateLikedOnlyIcon();
+            UpdateShuffleIcon();
+
+            LikedOnlyModeChanged?.Invoke(likedOnlyMode);
+            ShuffleModeChanged?.Invoke(shuffleMode);
+        }
+
+        private void UpdateLikedOnlyIcon()
+        {
+            LikedOnlyIcon.Source = new BitmapImage(
+                new Uri(
+                    likedOnlyMode
+                        ? "/assets/icons/heart_filled.png"
+                        : "/assets/icons/heart_hollow.png",
+                    UriKind.Relative
+                )
+            );
+        }
+
+        private void UpdateShuffleIcon()
+        {
+            ShuffleIcon.Source = new BitmapImage(
+                new Uri(
+                    shuffleMode
+                        ? "/assets/icons/shuffle.png"
+                        : "/assets/icons/shuffle_unselected.png",
+                    UriKind.Relative
+                )
+            );
         }
 
         public void RefreshAlbumOrder()
@@ -258,8 +304,11 @@ namespace musicplayer.View.UserControls
                 if (e.ChangedButton != MouseButton.Middle)
                     return;
 
-                selectedAlbum = album;
-                SelectedAlbumChanged?.Invoke(album);
+                if (!KeepGridExpandedOnMiddleClick)
+                {
+                    selectedAlbum = album;
+                    SelectedAlbumChanged?.Invoke(album);
+                }
 
                 Song? songToPlay;
 

@@ -8,7 +8,8 @@
              d:DesignHeight="200" d:DesignWidth="1000">
 
     <Grid Background="Transparent"
-      PreviewMouseWheel="PlayerBar_PreviewMouseWheel">
+            ClipToBounds="False"
+            PreviewMouseWheel="PlayerBar_PreviewMouseWheel">
         <Grid.ColumnDefinitions>
             <ColumnDefinition Width="160"/>
             <ColumnDefinition Width="30*" MinWidth="170"/>
@@ -17,28 +18,37 @@
         </Grid.ColumnDefinitions>
 
         <!-- Secondary/currently playing album art -->
-        <Border Grid.Column="0"
-                ClipToBounds="True"
-                Margin="10">
+        <Grid Grid.Column="0"
+              ClipToBounds="False"
+              Panel.ZIndex="20">
 
-            <Image Name="BackCoverImage"
+            <Border Width="150"
+            Height="150"
+            HorizontalAlignment="Left"
+            VerticalAlignment="Bottom"
+            Margin="10,0,0,4"
+            ClipToBounds="True">
+
+                <Image Name="BackCoverImage"
+                   Opacity="0"
                    Stretch="UniformToFill"
                    Cursor="Hand"
                    RenderOptions.BitmapScalingMode="HighQuality"
-                   HorizontalAlignment="Left"
-                   VerticalAlignment="Bottom"
+                   HorizontalAlignment="Stretch"
+                   VerticalAlignment="Stretch"
                    MouseLeftButtonDown="BackCoverImage_MouseLeftButtonDown"
                    MouseDown="BackCoverImage_MouseDown"/>
-        </Border>
+            </Border>
+        </Grid>
 
         <!-- Buttons + song name -->
         <Viewbox Grid.Column="1"
-                 Stretch="Uniform"
-                 StretchDirection="DownOnly"
-                 VerticalAlignment="Top"
-                 HorizontalAlignment="Center"
-                 MaxWidth="260"
-                 Margin="10,0,10,0">
+             Stretch="Uniform"
+             StretchDirection="DownOnly"
+             VerticalAlignment="Center"
+             HorizontalAlignment="Center"
+             MaxWidth="260"
+             Margin="10,-8,10,0">
 
             <StackPanel Orientation="Vertical"
                         HorizontalAlignment="Center">
@@ -88,115 +98,106 @@
                    TextTrimming="CharacterEllipsis"
                    Width="260"
                    LineHeight="28"
-                   MaxHeight="84"/>
+                   MaxHeight="56"
+                   Margin="0,-4,0,0"/>
             </StackPanel>
         </Viewbox>
 
         <!-- Progress + Volume -->
         <Grid Grid.Column="2"
-              VerticalAlignment="Top">
+      VerticalAlignment="Center"
+      Margin="0,-4,0,0">
 
             <Grid.ColumnDefinitions>
                 <ColumnDefinition/>
-                <ColumnDefinition Width="70"/>
+                <ColumnDefinition Width="46"/>
             </Grid.ColumnDefinitions>
 
             <!-- Progress area -->
             <Border Grid.Column="0"
-                    Height="140"
-                    VerticalAlignment="Bottom"
-                    >
+            Height="86"
+            VerticalAlignment="Center">
 
-                <Grid Margin="16,10,16,10">
+                <Grid Margin="16,0,8,0">
                     <Grid.RowDefinitions>
-                        <RowDefinition Height="85"/>
-                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="64"/>
+                        <RowDefinition Height="18"/>
                     </Grid.RowDefinitions>
 
                     <Grid Grid.Row="0"
-                          Name="ProgressArea"
-                          Height="85"
-                          Background="Transparent"
-                          PreviewMouseLeftButtonDown="ProgressArea_PreviewMouseLeftButtonDown"
-                          MouseMove="ProgressArea_MouseMove"
-                          MouseLeftButtonUp="ProgressArea_MouseLeftButtonUp">
+                  Name="ProgressArea"
+                  Height="64"
+                  Background="Transparent"
+                  PreviewMouseLeftButtonDown="ProgressArea_PreviewMouseLeftButtonDown"
+                  MouseMove="ProgressArea_MouseMove"
+                  MouseLeftButtonUp="ProgressArea_MouseLeftButtonUp">
 
                         <Canvas Name="AmplitudeCanvas"
-                                Height="68"
-                                VerticalAlignment="Center"
-                                IsHitTestVisible="True">
+                        Height="54"
+                        VerticalAlignment="Center"
+                        IsHitTestVisible="True">
 
                             <Polygon Name="AmplitudeMountain"
-                                     Fill="#3A4444"
-                                     Opacity="0.85"/>
+                             Fill="#3A4444"
+                             Opacity="0.85"/>
                         </Canvas>
 
                         <Slider Name="ProgressSlider"
-                                Style="{StaticResource GreenHorizontalSliderStyle}"
-                                Minimum="0"
-                                Maximum="100"
-                                Value="0"
-                                VerticalAlignment="Bottom"
-                                Margin="0,0,0,-10"
-                                ValueChanged="ProgressSlider_ValueChanged"/>
+                        Style="{StaticResource GreenHorizontalSliderStyle}"
+                        Minimum="0"
+                        Maximum="100"
+                        Value="0"
+                        VerticalAlignment="Bottom"
+                        Margin="0,0,0,-6"
+                        ValueChanged="ProgressSlider_ValueChanged"/>
                     </Grid>
 
-                    <Grid Grid.Row="1" Margin="0,4,0,0">
+                    <Grid Grid.Row="1" Margin="0,0,0,0">
                         <TextBlock Name="CurrentTimeText"
-                                   Text="0:00"
-                                   Foreground="Gray"
-                                   VerticalAlignment="Center"
-                                   HorizontalAlignment="Left"/>
+                           Text="0:00"
+                           Foreground="Gray"
+                           FontSize="11"
+                           VerticalAlignment="Top"
+                           HorizontalAlignment="Left"/>
 
                         <TextBlock Name="TotalTimeText"
-                                   Text="0:00"
-                                   Foreground="Gray"
-                                   VerticalAlignment="Center"
-                                   HorizontalAlignment="Right"/>
+                           Text="0:00"
+                           Foreground="Gray"
+                           FontSize="11"
+                           VerticalAlignment="Top"
+                           HorizontalAlignment="Right"/>
                     </Grid>
                 </Grid>
             </Border>
 
             <!-- Volume Slider -->
             <Border Grid.Column="1"
-                    Height="80"
-                    VerticalAlignment="Top">
+            Height="86"
+            VerticalAlignment="Center"
+            HorizontalAlignment="Left"
+            Margin="0,0,0,0">
 
-                <Grid>
-                    <Grid.RowDefinitions>
-                        <RowDefinition Height="Auto"/>
-                        <RowDefinition/>
-                    </Grid.RowDefinitions>
-
-                    <TextBlock Text="Vol"
-                               Grid.Row="0"
-                               Foreground="White"
-                               FontSize="12"
-                               HorizontalAlignment="Center"/>
-
-                    <Slider Name="VolumeSlider"
-                            Style="{StaticResource GreenVerticalSliderStyle}"
-                            Grid.Row="1"
-                            Orientation="Vertical"
-                            Minimum="0"
-                            Maximum="1"
-                            Value="1"
-                            Height="100"
-                            TickFrequency="0.1"
-                            HorizontalAlignment="Center"
-                            VerticalAlignment="Top"
-                            PreviewMouseLeftButtonDown="VolumeSlider_PreviewMouseLeftButtonDown"
-                            MouseMove="VolumeSlider_MouseMove"
-                            MouseLeftButtonUp="VolumeSlider_MouseLeftButtonUp"
-                            ValueChanged="VolumeSlider_ValueChanged"/>
-                </Grid>
+                <Slider Name="VolumeSlider"
+                Style="{StaticResource GreenVerticalSliderStyle}"
+                Orientation="Vertical"
+                Minimum="0"
+                Maximum="1"
+                Value="1"
+                Height="78"
+                TickFrequency="0.1"
+                HorizontalAlignment="Left"
+                VerticalAlignment="Center"
+                PreviewMouseLeftButtonDown="VolumeSlider_PreviewMouseLeftButtonDown"
+                MouseMove="VolumeSlider_MouseMove"
+                MouseLeftButtonUp="VolumeSlider_MouseLeftButtonUp"
+                ValueChanged="VolumeSlider_ValueChanged"/>
             </Border>
         </Grid>
 
         <!-- Future equalizer area -->
         <Border Grid.Column="3"
-                Height="140"
-                VerticalAlignment="Top">
+            Height="86"
+            VerticalAlignment="Center">
         </Border>
 
     </Grid>

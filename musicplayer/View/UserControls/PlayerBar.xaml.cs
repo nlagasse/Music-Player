@@ -31,12 +31,18 @@ namespace musicplayer.View.UserControls
         public event Action? EmptyPlayRequested;
 
         private bool likedOnlyMode = false;
+        private bool shuffleMode = false;
+        private readonly Random random = new();
 
         public event Action<Album?>? BackCoverMiddleClicked;
 
         public event Action<Album>? AlbumPlaybackStarted;
 
         public event Action<int, int, int?, int?>? AudioDebugInfoChanged;
+
+        public event Action<ImageSource?>? PlayerArtChanged;
+
+        private readonly Stack<PlaybackHistoryItem> playbackHistory = new Stack<PlaybackHistoryItem>();
 
         public PlayerBar()
         {
@@ -51,6 +57,57 @@ namespace musicplayer.View.UserControls
             {
                 DrawWaveformMountain();
             };
+        }
+
+        private class PlaybackHistoryItem
+        {
+            public Album Album { get; set; } = null!;
+            public Song Song { get; set; } = null!;
+        }
+
+        public void ShowCurrentAlbumFromPlayerArt()
+        {
+            if (currentAlbum == null)
+                return;
+
+            BackCoverMiddleClicked?.Invoke(currentAlbum);
+        }
+
+        public void CycleCurrentAlbumArtFromPlayerArt()
+        {
+            CycleCurrentAlbumArt();
+        }
+
+        public void SetShuffleMode(bool enabled)
+        {
+            shuffleMode = enabled;
+        }
+        public void ShuffleCurrentAlbum()
+        {
+            if (currentAlbum == null)
+                return;
+
+            List<Song> playableSongs = GetPlayableSongsForCurrentAlbum();
+
+            if (playableSongs.Count == 0)
+                return;
+
+            Song songToPlay;
+
+            if (playableSongs.Count == 1)
+            {
+                songToPlay = playableSongs[0];
+            }
+            else
+            {
+                do
+                {
+                    songToPlay = playableSongs[random.Next(playableSongs.Count)];
+                }
+                while (songToPlay == currentSong);
+            }
+
+            LoadSong(currentAlbum, songToPlay);
         }
 
         public void DisplayAlbum(Album? album)
@@ -73,7 +130,10 @@ namespace musicplayer.View.UserControls
         {
             string imagePath = GetCurrentPlayerArtPath(album);
 
-            BackCoverImage.Source = ImageService.LoadImage(imagePath);
+            ImageSource? imageSource = ImageService.LoadImage(imagePath);
+
+            BackCoverImage.Source = imageSource;
+            PlayerArtChanged?.Invoke(imageSource);
 
             BackCoverImage.ToolTip = new ToolTip
             {
@@ -133,8 +193,20 @@ namespace musicplayer.View.UserControls
             LibraryStorage.SaveLibrary();
         }
 
-        public void LoadSong(Album album, Song song)
+        public void LoadSong(Album album, Song song, bool addToHistory = true)
         {
+            if (addToHistory &&
+                currentAlbum != null &&
+                currentSong != null &&
+                !currentSong.FilePath.Equals(song.FilePath, StringComparison.OrdinalIgnoreCase))
+            {
+                playbackHistory.Push(new PlaybackHistoryItem
+                {
+                    Album = currentAlbum,
+                    Song = currentSong
+                });
+            }
+
             currentAlbum = album;
             currentSong = song;
             currentSongIndex = album.Songs.IndexOf(song);
@@ -151,11 +223,10 @@ namespace musicplayer.View.UserControls
             audioPlayer.Volume = (float)VolumeSlider.Value;
 
             AudioDebugInfoChanged?.Invoke(
-            audioPlayer.SampleRate,
-            audioPlayer.Channels,
+            GetAudioSampleRate(song.FilePath),
+            GetAudioChannels(song.FilePath),
             GetAudioBitrate(song.FilePath),
-            audioPlayer.LatencyMilliseconds
-            );
+            300);
 
             CurrentSongTitle.Text = song.Title;
 
@@ -199,6 +270,32 @@ namespace musicplayer.View.UserControls
             catch
             {
                 return null;
+            }
+        }
+
+        private int GetAudioSampleRate(string filePath)
+        {
+            try
+            {
+                using TagLib.File tagFile = TagLib.File.Create(filePath);
+                return tagFile.Properties.AudioSampleRate;
+            }
+            catch
+            {
+                return 0;
+            }
+        }
+
+        private int GetAudioChannels(string filePath)
+        {
+            try
+            {
+                using TagLib.File tagFile = TagLib.File.Create(filePath);
+                return tagFile.Properties.AudioChannels;
+            }
+            catch
+            {
+                return 0;
             }
         }
 
@@ -395,12 +492,14 @@ namespace musicplayer.View.UserControls
             currentAlbum = null;
             currentSong = null;
             currentSongIndex = -1;
+            playbackHistory.Clear();
 
             audioPlayer.Stop();
             progressTimer.Stop();
 
             CurrentSongTitle.Text = "";
             BackCoverImage.Source = null;
+            PlayerArtChanged?.Invoke(null);
             CurrentTimeText.Text = "0:00";
             TotalTimeText.Text = "0:00";
 
@@ -489,8 +588,8 @@ namespace musicplayer.View.UserControls
             if (width <= 0 || height <= 0 || waveformPoints.Count == 0)
                 return;
 
-            double baseY = height - 18;
-            double maxMountainHeight = height - 32;
+            double baseY = height - 14;
+            double maxMountainHeight = height - 20;
 
             PointCollection points = new PointCollection();
 
@@ -556,8 +655,32 @@ namespace musicplayer.View.UserControls
             AmplitudeMountain.Tag = null;
         }
 
+        private Song GetRandomPlayableSong(List<Song> playableSongs)
+        {
+            if (playableSongs.Count == 1)
+                return playableSongs[0];
+
+            Song randomSong;
+
+            do
+            {
+                randomSong = playableSongs[random.Next(playableSongs.Count)];
+            }
+            while (randomSong == currentSong);
+
+            return randomSong;
+        }
+
         public void PreviousSong()
         {
+            if (playbackHistory.Count > 0)
+            {
+                PlaybackHistoryItem previousItem = playbackHistory.Pop();
+
+                LoadSong(previousItem.Album, previousItem.Song, addToHistory: false);
+                return;
+            }
+
             if (currentAlbum == null || currentSong == null)
                 return;
 
@@ -593,6 +716,13 @@ namespace musicplayer.View.UserControls
 
             if (playableSongs.Count == 0)
                 return;
+
+            if (shuffleMode)
+            {
+                Song randomSong = GetRandomPlayableSong(playableSongs);
+                LoadSong(currentAlbum, randomSong);
+                return;
+            }
 
             int currentIndex = playableSongs.IndexOf(currentSong);
 

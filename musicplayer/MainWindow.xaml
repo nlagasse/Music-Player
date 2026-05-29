@@ -79,6 +79,39 @@
             <!-- Interactive Bar -->
             <userControls:PlayerBar x:Name="PlayerBarControl" Grid.Row="2" Loaded="PlayerBarControl_Loaded"/>
 
+            <!-- Secondary album art overlay -->
+            <Border x:Name="PlayerArtOverlayBorder"
+                Grid.Row="1"
+                Grid.RowSpan="2"
+                Width="150"
+                Height="150"
+                HorizontalAlignment="Left"
+                VerticalAlignment="Bottom"
+                Margin="10,0,0,4"
+                Background="Transparent"
+                BorderBrush="Transparent"
+                BorderThickness="2"
+                ClipToBounds="True"
+                Panel.ZIndex="60"
+                RenderTransformOrigin="0,1"
+                MouseEnter="PlayerArtOverlayBorder_MouseEnter"
+                MouseLeave="PlayerArtOverlayBorder_MouseLeave"
+                MouseWheel="PlayerArtOverlayBorder_MouseWheel"
+                MouseLeftButtonDown="PlayerArtOverlayBorder_MouseLeftButtonDown"
+                MouseDown="PlayerArtOverlayBorder_MouseDown">
+
+                <Border.RenderTransform>
+                    <ScaleTransform x:Name="PlayerArtOverlayScaleTransform"
+                        ScaleX="1"
+                        ScaleY="1"/>
+                </Border.RenderTransform>
+
+                <Image x:Name="PlayerArtOverlayImage"
+                   Cursor="Hand"
+                   Stretch="UniformToFill"
+                   RenderOptions.BitmapScalingMode="HighQuality"/>
+            </Border>
+
             <!-- Status Bar -->
             <Grid Grid.Row="3">
                 <Grid.ColumnDefinitions>

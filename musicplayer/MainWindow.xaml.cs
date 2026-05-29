@@ -4,6 +4,7 @@ using System.Windows.Interop;
 using musicplayer.Models;
 using System.Runtime.InteropServices;
 using System.IO;
+using System.Windows.Media;
 
 namespace musicplayer
 {
@@ -13,6 +14,7 @@ namespace musicplayer
         private musicplayer.Models.Song? currentPlayingSong;
         private musicplayer.Models.Album? selectedAlbum;
         private bool likedOnlyMode = false;
+        private double playerArtOverlayScale = 1.0;
         public MainWindow()
         {
             InitializeComponent();
@@ -34,10 +36,70 @@ namespace musicplayer
             PlayerBarControl.AudioDebugInfoChanged += PlayerBarControl_AudioDebugInfoChanged;
             PlayerBarControl.EmptyPlayRequested += PlayerBarControl_EmptyPlayRequested;
             AlbumCardControl.AlbumRenamed += AlbumCardControl_AlbumRenamed;
+            AlbumGridControl.ShuffleModeChanged += AlbumGridControl_ShuffleModeChanged;
+            PlayerBarControl.PlayerArtChanged += PlayerBarControl_PlayerArtChanged;
 
+            AlbumGridControl.LoadSavedToggleModes();
 
             SetAlbumPreviewVisible(false);
 
+        }
+
+        private void PlayerArtOverlayBorder_MouseEnter(object sender, System.Windows.Input.MouseEventArgs e)
+        {
+            PlayerArtOverlayBorder.BorderBrush = new System.Windows.Media.SolidColorBrush(
+                System.Windows.Media.Color.FromRgb(32, 33, 36)
+            );
+        }
+
+        private void PlayerArtOverlayBorder_MouseLeave(object sender, System.Windows.Input.MouseEventArgs e)
+        {
+            PlayerArtOverlayBorder.BorderBrush = System.Windows.Media.Brushes.Transparent;
+        }
+
+        private void PlayerArtOverlayBorder_MouseWheel(object sender, System.Windows.Input.MouseWheelEventArgs e)
+        {
+            double scaleStep = 0.08;
+
+            if (e.Delta > 0)
+                playerArtOverlayScale += scaleStep;
+            else
+                playerArtOverlayScale -= scaleStep;
+
+            playerArtOverlayScale = Math.Max(0.75, Math.Min(1.75, playerArtOverlayScale));
+
+            PlayerArtOverlayScaleTransform.ScaleX = playerArtOverlayScale;
+            PlayerArtOverlayScaleTransform.ScaleY = playerArtOverlayScale;
+
+            e.Handled = true;
+        }
+
+        private void PlayerBarControl_PlayerArtChanged(System.Windows.Media.ImageSource? imageSource)
+        {
+            PlayerArtOverlayImage.Source = imageSource;
+            PlayerArtOverlayBorder.Visibility = imageSource == null
+                ? Visibility.Collapsed
+                : Visibility.Visible;
+        }
+
+        private void PlayerArtOverlayBorder_MouseLeftButtonDown(object sender, System.Windows.Input.MouseButtonEventArgs e)
+        {
+            PlayerBarControl.ShowCurrentAlbumFromPlayerArt();
+            e.Handled = true;
+        }
+
+        private void PlayerArtOverlayBorder_MouseDown(object sender, System.Windows.Input.MouseButtonEventArgs e)
+        {
+            if (e.ChangedButton != System.Windows.Input.MouseButton.Middle)
+                return;
+
+            PlayerBarControl.CycleCurrentAlbumArtFromPlayerArt();
+            e.Handled = true;
+        }
+
+        private void AlbumGridControl_ShuffleModeChanged(bool enabled)
+        {
+            PlayerBarControl.SetShuffleMode(enabled);
         }
 
         private void AlbumCardControl_AlbumRenamed()
@@ -104,12 +166,19 @@ namespace musicplayer
                 AlbumGridColumn.Width = new GridLength(30, GridUnitType.Star);
                 AlbumCardColumn.Width = new GridLength(70, GridUnitType.Star);
                 AlbumCardControl.Visibility = Visibility.Visible;
+
+                // Album card is visible, so middle-clicking an album can update the previewer normally.
+                AlbumGridControl.KeepGridExpandedOnMiddleClick = false;
             }
             else
             {
                 AlbumGridColumn.Width = new GridLength(1, GridUnitType.Star);
                 AlbumCardColumn.Width = new GridLength(0);
                 AlbumCardControl.Visibility = Visibility.Collapsed;
+
+                // Album card is collapsed, so middle-clicking should only play,
+                // not reopen the album card.
+                AlbumGridControl.KeepGridExpandedOnMiddleClick = true;
             }
         }
 
