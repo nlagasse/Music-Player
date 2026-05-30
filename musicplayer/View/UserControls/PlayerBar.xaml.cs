@@ -43,6 +43,7 @@ namespace musicplayer.View.UserControls
         public event Action<ImageSource?>? PlayerArtChanged;
 
         private readonly Stack<PlaybackHistoryItem> playbackHistory = new Stack<PlaybackHistoryItem>();
+        private readonly Stack<PlaybackHistoryItem> forwardHistory = new Stack<PlaybackHistoryItem>();
 
         public PlayerBar()
         {
@@ -81,33 +82,6 @@ namespace musicplayer.View.UserControls
         public void SetShuffleMode(bool enabled)
         {
             shuffleMode = enabled;
-        }
-        public void ShuffleCurrentAlbum()
-        {
-            if (currentAlbum == null)
-                return;
-
-            List<Song> playableSongs = GetPlayableSongsForCurrentAlbum();
-
-            if (playableSongs.Count == 0)
-                return;
-
-            Song songToPlay;
-
-            if (playableSongs.Count == 1)
-            {
-                songToPlay = playableSongs[0];
-            }
-            else
-            {
-                do
-                {
-                    songToPlay = playableSongs[random.Next(playableSongs.Count)];
-                }
-                while (songToPlay == currentSong);
-            }
-
-            LoadSong(currentAlbum, songToPlay);
         }
 
         public void DisplayAlbum(Album? album)
@@ -150,7 +124,7 @@ namespace musicplayer.View.UserControls
             ToolTipService.SetBetweenShowDelay(BackCoverImage, 100);
         }
 
-        
+
 
         private void BackCoverImage_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
         {
@@ -193,8 +167,21 @@ namespace musicplayer.View.UserControls
             LibraryStorage.SaveLibrary();
         }
 
-        public void LoadSong(Album album, Song song, bool addToHistory = true)
+        public void LoadSong(Album album, Song song, bool addToHistory = true, bool clearForwardHistory = true)
         {
+            bool albumChanged = currentAlbum != null && !ReferenceEquals(currentAlbum, album);
+
+            if (albumChanged)
+            {
+                playbackHistory.Clear();
+                forwardHistory.Clear();
+                addToHistory = false;
+            }
+            else if (clearForwardHistory)
+            {
+                forwardHistory.Clear();
+            }
+
             if (addToHistory &&
                 currentAlbum != null &&
                 currentSong != null &&
@@ -223,10 +210,11 @@ namespace musicplayer.View.UserControls
             audioPlayer.Volume = (float)VolumeSlider.Value;
 
             AudioDebugInfoChanged?.Invoke(
-            GetAudioSampleRate(song.FilePath),
-            GetAudioChannels(song.FilePath),
-            GetAudioBitrate(song.FilePath),
-            300);
+                GetAudioSampleRate(song.FilePath),
+                GetAudioChannels(song.FilePath),
+                GetAudioBitrate(song.FilePath),
+                300
+            );
 
             CurrentSongTitle.Text = song.Title;
 
@@ -359,7 +347,7 @@ namespace musicplayer.View.UserControls
             likedOnlyMode = enabled;
         }
 
-        
+
 
         private void ProgressArea_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
         {
@@ -493,6 +481,7 @@ namespace musicplayer.View.UserControls
             currentSong = null;
             currentSongIndex = -1;
             playbackHistory.Clear();
+            forwardHistory.Clear();
 
             audioPlayer.Stop();
             progressTimer.Stop();
@@ -609,6 +598,17 @@ namespace musicplayer.View.UserControls
             AmplitudeMountain.Points = points;
         }
 
+        private bool IsSongPlayableInCurrentMode(Song song)
+        {
+            if (currentAlbum == null)
+                return false;
+
+            List<Song> playableSongs = GetPlayableSongsForCurrentAlbum();
+
+            return playableSongs.Any(playableSong =>
+                playableSong.FilePath.Equals(song.FilePath, StringComparison.OrdinalIgnoreCase));
+        }
+
         private List<Song> GetPlayableSongsForCurrentAlbum()
         {
             if (currentAlbum == null)
@@ -673,16 +673,34 @@ namespace musicplayer.View.UserControls
 
         public void PreviousSong()
         {
-            if (playbackHistory.Count > 0)
+            if (currentAlbum == null || currentSong == null)
+                return;
+
+            while (playbackHistory.Count > 0)
             {
                 PlaybackHistoryItem previousItem = playbackHistory.Pop();
 
-                LoadSong(previousItem.Album, previousItem.Song, addToHistory: false);
+                if (!ReferenceEquals(previousItem.Album, currentAlbum))
+                    continue;
+
+                if (!IsSongPlayableInCurrentMode(previousItem.Song))
+                    continue;
+
+                forwardHistory.Push(new PlaybackHistoryItem
+                {
+                    Album = currentAlbum,
+                    Song = currentSong
+                });
+
+                LoadSong(
+                    previousItem.Album,
+                    previousItem.Song,
+                    addToHistory: false,
+                    clearForwardHistory: false
+                );
+
                 return;
             }
-
-            if (currentAlbum == null || currentSong == null)
-                return;
 
             List<Song> playableSongs = GetPlayableSongsForCurrentAlbum();
 
@@ -699,7 +717,18 @@ namespace musicplayer.View.UserControls
             if (currentIndex < 0)
                 currentIndex = playableSongs.Count - 1;
 
-            LoadSong(currentAlbum, playableSongs[currentIndex]);
+            forwardHistory.Push(new PlaybackHistoryItem
+            {
+                Album = currentAlbum,
+                Song = currentSong
+            });
+
+            LoadSong(
+                currentAlbum,
+                playableSongs[currentIndex],
+                addToHistory: false,
+                clearForwardHistory: false
+            );
         }
 
         public void TogglePlayPause()
@@ -711,6 +740,26 @@ namespace musicplayer.View.UserControls
         {
             if (currentAlbum == null || currentSong == null)
                 return;
+
+            while (forwardHistory.Count > 0)
+            {
+                PlaybackHistoryItem nextItem = forwardHistory.Pop();
+
+                if (!ReferenceEquals(nextItem.Album, currentAlbum))
+                    continue;
+
+                if (!IsSongPlayableInCurrentMode(nextItem.Song))
+                    continue;
+
+                LoadSong(
+                    nextItem.Album,
+                    nextItem.Song,
+                    addToHistory: true,
+                    clearForwardHistory: false
+                );
+
+                return;
+            }
 
             List<Song> playableSongs = GetPlayableSongsForCurrentAlbum();
 
@@ -736,5 +785,6 @@ namespace musicplayer.View.UserControls
 
             LoadSong(currentAlbum, playableSongs[currentIndex]);
         }
+
     }
 }
