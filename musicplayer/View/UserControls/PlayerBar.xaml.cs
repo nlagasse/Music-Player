@@ -45,9 +45,18 @@ namespace musicplayer.View.UserControls
         private readonly Stack<PlaybackHistoryItem> playbackHistory = new Stack<PlaybackHistoryItem>();
         private readonly Stack<PlaybackHistoryItem> forwardHistory = new Stack<PlaybackHistoryItem>();
 
+        private bool isLoadingSavedVolume = false;
+
         public PlayerBar()
         {
             InitializeComponent();
+
+            isLoadingSavedVolume = true;
+
+            VolumeSlider.Value = Math.Max(0.0, Math.Min(1.0, AppData.Library.VolumeLevel));
+            audioPlayer.Volume = (float)VolumeSlider.Value;
+
+            isLoadingSavedVolume = false;
 
             progressTimer.Interval = TimeSpan.FromMilliseconds(50);
             progressTimer.Tick += ProgressTimer_Tick;
@@ -65,6 +74,34 @@ namespace musicplayer.View.UserControls
             public Album Album { get; set; } = null!;
             public Song Song { get; set; } = null!;
         }
+
+        private void LikeCurrentSongButton_Click(object sender, RoutedEventArgs e)
+        {
+            if (currentSong == null)
+                return;
+
+            currentSong.IsLiked = !currentSong.IsLiked;
+
+            UpdateCurrentSongLikeIcon();
+
+            LibraryStorage.SaveLibrary();
+
+            CurrentSongChanged?.Invoke(currentSong);
+        }
+
+        private void UpdateCurrentSongLikeIcon()
+        {
+            if (currentSong == null || !currentSong.IsLiked)
+            {
+                LikeCurrentSongIcon.Source =
+                    new BitmapImage(new Uri("/assets/icons/heart_hollow.png", UriKind.Relative));
+                return;
+            }
+
+            LikeCurrentSongIcon.Source =
+                new BitmapImage(new Uri("/assets/icons/heart_filled.png", UriKind.Relative));
+        }
+
 
         public void ShowCurrentAlbumFromPlayerArt()
         {
@@ -217,6 +254,8 @@ namespace musicplayer.View.UserControls
             );
 
             CurrentSongTitle.Text = song.Title;
+
+            UpdateCurrentSongLikeIcon();
 
             ProgressSlider.Maximum = Math.Max(1, audioPlayer.TotalTime.TotalSeconds);
             ProgressSlider.Value = 0;
@@ -383,22 +422,12 @@ namespace musicplayer.View.UserControls
             if (audioPlayer.TotalTime.TotalSeconds <= 0)
                 return;
 
-            // This must match the left/right margin inside GreenHorizontalSliderStyle.
-            double trackHorizontalMargin = 8;
+            double width = ProgressArea.ActualWidth;
 
-            Point mousePointInSlider = ProgressArea.TranslatePoint(
-                new Point(mouseX, 0),
-                ProgressSlider
-            );
-
-            double trackWidth = ProgressSlider.ActualWidth - trackHorizontalMargin * 2;
-
-            if (trackWidth <= 0)
+            if (width <= 0)
                 return;
 
-            double trackX = mousePointInSlider.X - trackHorizontalMargin;
-
-            double percent = trackX / trackWidth;
+            double percent = mouseX / width;
             percent = Math.Max(0, Math.Min(1, percent));
 
             TimeSpan targetTime = TimeSpan.FromSeconds(audioPlayer.TotalTime.TotalSeconds * percent);
@@ -500,6 +529,7 @@ namespace musicplayer.View.UserControls
             SetPlayIconToPlay();
             PlaybackStateChanged?.Invoke(false);
             CurrentSongChanged?.Invoke(null);
+            UpdateCurrentSongLikeIcon();
         }
 
         private void ProgressTimer_Tick(object? sender, EventArgs e)
@@ -532,6 +562,12 @@ namespace musicplayer.View.UserControls
         private void VolumeSlider_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
         {
             audioPlayer.Volume = (float)VolumeSlider.Value;
+
+            if (isLoadingSavedVolume)
+                return;
+
+            AppData.Library.VolumeLevel = VolumeSlider.Value;
+            LibraryStorage.SaveLibrary();
         }
 
         private void SetPlayIconToPlay()

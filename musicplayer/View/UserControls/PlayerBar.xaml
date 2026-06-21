@@ -84,6 +84,13 @@
                             <Image Source="/assets/icons/fast-forward-256.png"/>
                         </Button>
 
+                        <Button Name="LikeCurrentSongButton"
+                            Click="LikeCurrentSongButton_Click"
+                            Style="{StaticResource PlayerButtonStyle}">
+                                                <Image x:Name="LikeCurrentSongIcon"
+                               Source="/assets/icons/heart_hollow.png"/>
+                        </Button>
+
                     </StackPanel>
                 </Border>
 

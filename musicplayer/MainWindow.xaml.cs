@@ -17,9 +17,9 @@ namespace musicplayer
         private double playerArtOverlayScale = 1.0;
         public MainWindow()
         {
+            LibraryStorage.LoadLibrary();
             InitializeComponent();
             SourceInitialized += MainWindow_SourceInitialized;
-            LibraryStorage.LoadLibrary();
             AlbumGridControl.LoadSavedAlbums();
             StateChanged += MainWindow_StateChanged;
             UpdateWindowChromeForState();

@@ -8,6 +8,9 @@ using System.Windows.Media.Imaging;
 using System.Windows.Threading;
 using System.Windows.Interop;
 
+using Forms = System.Windows.Forms;
+using Drawing = System.Drawing;
+
 using musicplayer.Services;
 
 namespace musicplayer.View.UserControls
@@ -60,7 +63,67 @@ namespace musicplayer.View.UserControls
             e.Handled = true;
         }
 
+        private void SongRow_PreviewMouseRightButtonDown(object sender, MouseButtonEventArgs e)
+        {
+            if (sender is not FrameworkElement row)
+                return;
 
+            if (row.DataContext is not SongDisplayItem item)
+                return;
+
+            if (item.Song == null)
+                return;
+
+            ContextMenu contextMenu = BuildSongContextMenu(item.Song);
+
+            row.ContextMenu = contextMenu;
+            contextMenu.PlacementTarget = row;
+            contextMenu.IsOpen = true;
+
+            e.Handled = true;
+        }
+
+        private ContextMenu BuildSongContextMenu(Song song)
+        {
+            ContextMenu contextMenu = new ContextMenu();
+
+            List<Album> playlists = AppData.Library.Albums
+                .Where(album => album.IsPlaylist)
+                .OrderBy(album => album.Title)
+                .ToList();
+
+            foreach (Album playlist in playlists)
+            {
+                MenuItem playlistItem = new MenuItem
+                {
+                    Header = playlist.Title
+                };
+
+                playlistItem.Click += (sender, e) =>
+                {
+                    AddSongToPlaylist(song, playlist);
+                };
+
+                contextMenu.Items.Add(playlistItem);
+            }
+
+            if (playlists.Count > 0)
+                contextMenu.Items.Add(new Separator());
+
+            MenuItem removeItem = new MenuItem
+            {
+                Header = "Remove"
+            };
+
+            removeItem.Click += (sender, e) =>
+            {
+                SongRemoveRequested?.Invoke(song);
+            };
+
+            contextMenu.Items.Add(removeItem);
+
+            return contextMenu;
+        }
 
         private Point ScreenPixelsToWpfUnits(Point screenPoint)
         {
@@ -143,11 +206,19 @@ namespace musicplayer.View.UserControls
 
             foreach (SongDisplayItem item in currentSongItems)
             {
-                bool isPlaying = item.Song == song;
+                if (item.Song == null)
+                    continue;
 
-                item.IsPlaying = isPlaying;
+                bool isSameSong =
+                    song != null &&
+                    item.Song.FilePath.Equals(song.FilePath, StringComparison.OrdinalIgnoreCase);
 
-                if (isPlaying)
+                item.IsPlaying = isSameSong;
+
+                // This keeps the album-card heart icon synced with the actual song model.
+                item.IsLiked = item.Song.IsLiked;
+
+                if (isSameSong)
                     playingItem = item;
             }
 
@@ -423,18 +494,43 @@ namespace musicplayer.View.UserControls
 
             albumArtPopupScaleTransform = new ScaleTransform(1.0, 1.0);
 
+            ImageSource? popupSource = AlbumCover.Source;
+
+            double popupWidth = albumArtPopupBaseSize;
+            double popupHeight = albumArtPopupBaseSize;
+
+            if (popupSource is BitmapSource bitmapSource &&
+                bitmapSource.PixelWidth > 0 &&
+                bitmapSource.PixelHeight > 0)
+            {
+                double aspectRatio = (double)bitmapSource.PixelWidth / bitmapSource.PixelHeight;
+
+                if (aspectRatio >= 1)
+                {
+                    popupWidth = albumArtPopupBaseSize;
+                    popupHeight = albumArtPopupBaseSize / aspectRatio;
+                }
+                else
+                {
+                    popupHeight = albumArtPopupBaseSize;
+                    popupWidth = albumArtPopupBaseSize * aspectRatio;
+                }
+            }
+
             Image popupImage = new Image
             {
-                Source = AlbumCover.Source,
-                Stretch = Stretch.Uniform
+                Source = popupSource,
+                Stretch = Stretch.Fill,
+                Width = popupWidth,
+                Height = popupHeight
             };
 
             RenderOptions.SetBitmapScalingMode(popupImage, BitmapScalingMode.HighQuality);
 
             albumArtPopupBorder = new Border
             {
-                Width = albumArtPopupBaseSize,
-                Height = albumArtPopupBaseSize,
+                Width = popupWidth,
+                Height = popupHeight,
                 Background = Brushes.Transparent,
                 Child = popupImage,
                 Cursor = Cursors.SizeAll,
@@ -449,7 +545,16 @@ namespace musicplayer.View.UserControls
 
             overlayCanvas.Children.Add(albumArtPopupBorder);
 
-            Rect workArea = SystemParameters.WorkArea;
+            Point coverScreenPositionPixels = AlbumCover.PointToScreen(new Point(0, 0));
+
+            Forms.Screen screen = Forms.Screen.FromPoint(
+                new Drawing.Point(
+                    (int)coverScreenPositionPixels.X,
+                    (int)coverScreenPositionPixels.Y
+                )
+            );
+
+            Drawing.Rectangle workingArea = screen.WorkingArea;
 
             albumArtPopupWindow = new Window
             {
@@ -463,18 +568,14 @@ namespace musicplayer.View.UserControls
                 WindowStartupLocation = WindowStartupLocation.Manual,
                 Owner = ownerWindow,
 
-                Left = workArea.Left,
-                Top = workArea.Top,
-                Width = workArea.Width,
-                Height = workArea.Height
+                Left = workingArea.Left,
+                Top = workingArea.Top,
+                Width = workingArea.Width,
+                Height = workingArea.Height
             };
 
-            // PointToScreen gives physical pixels, so convert to WPF units.
-            Point coverScreenPositionPixels = AlbumCover.PointToScreen(new Point(0, 0));
-            Point coverScreenPosition = ScreenPixelsToWpfUnits(coverScreenPositionPixels);
-
-            double popupLeft = coverScreenPosition.X - workArea.Left;
-            double popupTop = coverScreenPosition.Y - workArea.Top;
+            double popupLeft = coverScreenPositionPixels.X - workingArea.Left;
+            double popupTop = coverScreenPositionPixels.Y - workingArea.Top;
 
             popupLeft -= 80;
 

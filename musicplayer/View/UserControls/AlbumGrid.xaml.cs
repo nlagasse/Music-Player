@@ -188,10 +188,10 @@ namespace musicplayer.View.UserControls
             }
             else
             {
-                        albumVisual = new Grid
-                        {
-                            Background = new SolidColorBrush(Color.FromRgb(24, 51, 51)),
-                            Children =
+                albumVisual = new Grid
+                {
+                    Background = new SolidColorBrush(Color.FromRgb(24, 51, 51)),
+                    Children =
                         {
 
                         new TextBlock
@@ -310,19 +310,7 @@ namespace musicplayer.View.UserControls
                     SelectedAlbumChanged?.Invoke(album);
                 }
 
-                Song? songToPlay;
-
-                if (likedOnlyMode)
-                {
-                    songToPlay = album.Songs.FirstOrDefault(song => song.IsLiked);
-
-                    if (songToPlay == null)
-                        songToPlay = album.Songs.FirstOrDefault();
-                }
-                else
-                {
-                    songToPlay = album.Songs.FirstOrDefault();
-                }
+                Song? songToPlay = GetMiddleClickSongToPlay(album);
 
                 if (songToPlay != null)
                     AlbumMiddleClickedPlayRequested?.Invoke(album, songToPlay);
@@ -331,6 +319,34 @@ namespace musicplayer.View.UserControls
             };
 
             AlbumsPanel.Children.Add(albumBorder);
+        }
+
+        private Song? GetMiddleClickSongToPlay(Album album)
+        {
+            List<Song> playableSongs;
+
+            if (likedOnlyMode)
+            {
+                playableSongs = album.Songs
+                    .Where(song => song.IsLiked)
+                    .ToList();
+
+                if (playableSongs.Count == 0)
+                    playableSongs = album.Songs.ToList();
+            }
+            else
+            {
+                playableSongs = album.Songs.ToList();
+            }
+
+            if (playableSongs.Count == 0)
+                return null;
+
+            if (!shuffleMode)
+                return playableSongs[0];
+
+            Random random = new Random();
+            return playableSongs[random.Next(playableSongs.Count)];
         }
 
         private void RefreshSavedAlbumFromFolder(Album savedAlbum)

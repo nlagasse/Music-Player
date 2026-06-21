@@ -169,12 +169,12 @@
                                     VerticalAlignment="Center"
                                     HorizontalAlignment="Stretch"
                                     Background="{StaticResource GreenIdleBrush}"
-                                    Margin="8,0,8,0"/>
+                                    Margin="0"/>
 
                             <Track x:Name="PART_Track"
                                    VerticalAlignment="Center"
                                    IsDirectionReversed="False"
-                                   Margin="8,0,8,0">
+                                   Margin="0">
 
                                 <Track.DecreaseRepeatButton>
                                     <RepeatButton Command="Slider.DecreaseLarge"
