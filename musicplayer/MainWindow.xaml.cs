@@ -15,10 +15,15 @@ namespace musicplayer
         private musicplayer.Models.Album? selectedAlbum;
         private bool likedOnlyMode = false;
         private double playerArtOverlayScale = 1.0;
+
+        private bool shuffleMode = false;
+        private readonly Random albumPlayRandom = new Random();
+
         public MainWindow()
         {
             LibraryStorage.LoadLibrary();
             InitializeComponent();
+            PlayerBarControl.LoadSavedVolume();
             SourceInitialized += MainWindow_SourceInitialized;
             AlbumGridControl.LoadSavedAlbums();
             StateChanged += MainWindow_StateChanged;
@@ -38,6 +43,7 @@ namespace musicplayer
             AlbumCardControl.AlbumRenamed += AlbumCardControl_AlbumRenamed;
             AlbumGridControl.ShuffleModeChanged += AlbumGridControl_ShuffleModeChanged;
             PlayerBarControl.PlayerArtChanged += PlayerBarControl_PlayerArtChanged;
+            AlbumCardControl.AlbumPlayRequested += AlbumCardControl_AlbumPlayRequested;
 
             AlbumGridControl.LoadSavedToggleModes();
 
@@ -99,7 +105,62 @@ namespace musicplayer
 
         private void AlbumGridControl_ShuffleModeChanged(bool enabled)
         {
+            shuffleMode = enabled;
             PlayerBarControl.SetShuffleMode(enabled);
+        }
+
+        private void AlbumCardControl_AlbumPlayRequested(Album album)
+        {
+            selectedAlbum = album;
+
+            Song? songToPlay = GetSongToPlayFromAlbumButton(album);
+
+            if (songToPlay == null)
+                return;
+
+            AlbumCardControl.SetPlayingSong(songToPlay);
+
+            PlayerBarControl.DisplayAlbum(album);
+            PlayerBarControl.LoadSong(album, songToPlay);
+        }
+
+        private Song? GetSongToPlayFromAlbumButton(Album album)
+        {
+            List<Song> playableSongs;
+
+            if (likedOnlyMode)
+            {
+                playableSongs = album.Songs
+                    .Where(song => song.IsLiked)
+                    .ToList();
+
+                if (playableSongs.Count == 0)
+                    playableSongs = album.Songs.ToList();
+            }
+            else
+            {
+                playableSongs = album.Songs.ToList();
+            }
+
+            if (playableSongs.Count == 0)
+                return null;
+
+            if (!shuffleMode)
+                return playableSongs[0];
+
+            if (playableSongs.Count == 1)
+                return playableSongs[0];
+
+            Song randomSong;
+
+            do
+            {
+                randomSong = playableSongs[albumPlayRandom.Next(playableSongs.Count)];
+            }
+            while (currentPlayingSong != null &&
+                   randomSong.FilePath.Equals(currentPlayingSong.FilePath, StringComparison.OrdinalIgnoreCase));
+
+            return randomSong;
         }
 
         private void AlbumCardControl_AlbumRenamed()

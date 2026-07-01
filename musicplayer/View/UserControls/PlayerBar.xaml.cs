@@ -4,10 +4,13 @@ using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
+using System.Windows.Shapes;
 using System.Windows.Threading;
 
 using musicplayer.Models;
 using musicplayer.Services;
+
+using System.Windows.Media.Animation;
 
 namespace musicplayer.View.UserControls
 {
@@ -15,9 +18,6 @@ namespace musicplayer.View.UserControls
     {
         private readonly AudioPlayerService audioPlayer = new AudioPlayerService();
         private readonly DispatcherTimer progressTimer = new DispatcherTimer();
-
-        private readonly List<float> waveformPoints = new List<float>();
-        private const int WaveformPointCount = 140;
 
         private Album? currentAlbum;
         private Song? currentSong;
@@ -35,11 +35,8 @@ namespace musicplayer.View.UserControls
         private readonly Random random = new();
 
         public event Action<Album?>? BackCoverMiddleClicked;
-
         public event Action<Album>? AlbumPlaybackStarted;
-
         public event Action<int, int, int?, int?>? AudioDebugInfoChanged;
-
         public event Action<ImageSource?>? PlayerArtChanged;
 
         private readonly Stack<PlaybackHistoryItem> playbackHistory = new Stack<PlaybackHistoryItem>();
@@ -47,18 +44,21 @@ namespace musicplayer.View.UserControls
 
         private bool isLoadingSavedVolume = false;
 
+        private readonly List<float> waveformPoints = new List<float>();
+        private const int WaveformPointCount = 120;
+
+        private double displayedBassLevel = 0;
+        private double displayedMidLevel = 0;
+        private double displayedTrebleLevel = 0;
+
+        private readonly Dictionary<string, List<float>> waveformCache = new Dictionary<string, List<float>>(StringComparer.OrdinalIgnoreCase);
+        private int waveformBuildVersion = 0;
+
         public PlayerBar()
         {
             InitializeComponent();
 
-            isLoadingSavedVolume = true;
-
-            VolumeSlider.Value = Math.Max(0.0, Math.Min(1.0, AppData.Library.VolumeLevel));
-            audioPlayer.Volume = (float)VolumeSlider.Value;
-
-            isLoadingSavedVolume = false;
-
-            progressTimer.Interval = TimeSpan.FromMilliseconds(50);
+            progressTimer.Interval = TimeSpan.FromMilliseconds(25);
             progressTimer.Tick += ProgressTimer_Tick;
 
             audioPlayer.PlaybackStopped += AudioPlayer_PlaybackStopped;
@@ -67,6 +67,7 @@ namespace musicplayer.View.UserControls
             {
                 DrawWaveformMountain();
             };
+
         }
 
         private class PlaybackHistoryItem
@@ -101,7 +102,6 @@ namespace musicplayer.View.UserControls
             LikeCurrentSongIcon.Source =
                 new BitmapImage(new Uri("/assets/icons/heart_filled.png", UriKind.Relative));
         }
-
 
         public void ShowCurrentAlbumFromPlayerArt()
         {
@@ -161,8 +161,6 @@ namespace musicplayer.View.UserControls
             ToolTipService.SetBetweenShowDelay(BackCoverImage, 100);
         }
 
-
-
         private void BackCoverImage_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
         {
             if (currentAlbum == null)
@@ -191,17 +189,34 @@ namespace musicplayer.View.UserControls
             if (currentAlbum == null)
                 return;
 
-            if (currentAlbum.AlbumArtPaths == null || currentAlbum.AlbumArtPaths.Count == 0)
+            List<string> availableArt = GetCurrentAvailablePlayerArt(currentAlbum);
+
+            if (availableArt.Count == 0)
                 return;
 
             currentAlbum.PlayerArtIndex++;
 
-            if (currentAlbum.PlayerArtIndex >= currentAlbum.AlbumArtPaths.Count)
+            if (currentAlbum.PlayerArtIndex >= availableArt.Count)
                 currentAlbum.PlayerArtIndex = 0;
 
             SetBackCoverImage(currentAlbum);
 
             LibraryStorage.SaveLibrary();
+        }
+
+        public void LoadSavedVolume()
+        {
+            isLoadingSavedVolume = true;
+
+            double savedVolume = AppData.Library.VolumeLevel;
+
+            if (savedVolume < 0.0 || savedVolume > 1.0)
+                savedVolume = 0.5;
+
+            VolumeSlider.Value = savedVolume;
+            audioPlayer.Volume = (float)savedVolume;
+
+            isLoadingSavedVolume = false;
         }
 
         public void LoadSong(Album album, Song song, bool addToHistory = true, bool clearForwardHistory = true)
@@ -263,8 +278,7 @@ namespace musicplayer.View.UserControls
             CurrentTimeText.Text = "0:00";
             TotalTimeText.Text = FormatTime(audioPlayer.TotalTime);
 
-            waveformPoints.Clear();
-            AmplitudeMountain.Points.Clear();
+            PrepareWaveformForLoading();
 
             audioPlayer.Play();
             progressTimer.Start();
@@ -272,19 +286,136 @@ namespace musicplayer.View.UserControls
             SetPlayIconToPause();
             PlaybackStateChanged?.Invoke(true);
 
-            BuildWaveformInBackground(song);
+            int buildVersion = ++waveformBuildVersion;
+            BuildWaveformInBackground(song, buildVersion);
         }
 
-        private async void BuildWaveformInBackground(Song song)
+        private async void BuildWaveformInBackground(Song song, int buildVersion)
         {
-            List<float> builtWaveform = await WaveformService.BuildWaveformFromFileAsync(song.FilePath, WaveformPointCount);
+            if (waveformCache.TryGetValue(song.FilePath, out List<float>? cachedWaveform))
+            {
+                if (currentSong != song || buildVersion != waveformBuildVersion)
+                    return;
 
-            if (currentSong != song)
+                waveformPoints.Clear();
+                waveformPoints.AddRange(cachedWaveform);
+
+                DrawWaveformMountain();
+                AnimateWaveformScale(1.0, 180);
                 return;
+            }
+
+            List<float> builtWaveform =
+                await WaveformService.BuildWaveformFromFileAsync(song.FilePath, WaveformPointCount);
+
+            if (currentSong != song || buildVersion != waveformBuildVersion)
+                return;
+
+            waveformCache[song.FilePath] = builtWaveform;
 
             waveformPoints.Clear();
             waveformPoints.AddRange(builtWaveform);
+
             DrawWaveformMountain();
+            AnimateWaveformScale(1.0, 180);
+        }
+
+        private void PrepareWaveformForLoading()
+        {
+            if (AmplitudeMountain.Points.Count == 0)
+                DrawFlatWaveformPlaceholder();
+
+            AnimateWaveformScale(0.08, 130);
+        }
+
+        private void DrawFlatWaveformPlaceholder()
+        {
+            double width = ProgressArea.ActualWidth;
+            double height = ProgressArea.ActualHeight - 8;
+
+            if (width <= 0 || height <= 0)
+                return;
+
+            double baseY = height;
+            double topY = height - 5;
+
+            PointCollection points = new PointCollection
+    {
+        new Point(0, baseY),
+        new Point(0, topY),
+        new Point(width, topY),
+        new Point(width, baseY)
+    };
+
+            AmplitudeMountain.Points = points;
+        }
+
+        private void DrawWaveformMountain()
+        {
+            double width = ProgressArea.ActualWidth;
+            double height = ProgressArea.ActualHeight - 8;
+
+            if (width <= 0 || height <= 0 || waveformPoints.Count == 0)
+                return;
+
+            PointCollection points = new PointCollection();
+
+            double baseY = height;
+            points.Add(new Point(0, baseY));
+
+            double stepX = waveformPoints.Count > 1
+                ? width / (waveformPoints.Count - 1)
+                : width;
+
+            for (int i = 0; i < waveformPoints.Count; i++)
+            {
+                double x = i * stepX;
+
+                double value = waveformPoints[i];
+                value = Math.Max(0.0, Math.Min(1.0, value));
+                value = Math.Sqrt(value);
+
+                double amplitude = value * height * 0.95;
+                double y = baseY - amplitude;
+
+                points.Add(new Point(x, y));
+            }
+
+            points.Add(new Point(width, baseY));
+
+            AmplitudeMountain.Points = points;
+        }
+
+        private void AnimateWaveformScale(double targetScale, int milliseconds)
+        {
+            DoubleAnimation animation = new DoubleAnimation
+            {
+                To = targetScale,
+                Duration = TimeSpan.FromMilliseconds(milliseconds),
+                EasingFunction = new QuadraticEase
+                {
+                    EasingMode = EasingMode.EaseInOut
+                }
+            };
+
+            WaveformScaleTransform.BeginAnimation(ScaleTransform.ScaleYProperty, animation);
+        }
+
+        private void ClearWaveformAndEqualizer()
+        {
+            waveformPoints.Clear();
+            AmplitudeMountain.Points.Clear();
+
+            WaveformScaleTransform.BeginAnimation(ScaleTransform.ScaleYProperty, null);
+            WaveformScaleTransform.ScaleY = 1;
+
+            displayedBassLevel = 0;
+            displayedMidLevel = 0;
+            displayedTrebleLevel = 0;
+
+            BassEqBar.Height = 3;
+            MidEqBar.Height = 3;
+            TrebleEqBar.Height = 3;
         }
 
         private int? GetAudioBitrate(string filePath)
@@ -386,8 +517,6 @@ namespace musicplayer.View.UserControls
             likedOnlyMode = enabled;
         }
 
-
-
         private void ProgressArea_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
         {
             isSeekingWithMouse = true;
@@ -470,7 +599,6 @@ namespace musicplayer.View.UserControls
 
         private void SetVolumeFromMouse(double mouseY)
         {
-            // This must match the top/bottom margin inside GreenVerticalSliderStyle.
             double trackVerticalMargin = 10;
 
             double trackHeight = VolumeSlider.ActualHeight - trackVerticalMargin * 2;
@@ -523,8 +651,7 @@ namespace musicplayer.View.UserControls
 
             ProgressSlider.Value = 0;
 
-            waveformPoints.Clear();
-            AmplitudeMountain.Points.Clear();
+            ClearWaveformAndEqualizer();
 
             SetPlayIconToPlay();
             PlaybackStateChanged?.Invoke(false);
@@ -534,10 +661,9 @@ namespace musicplayer.View.UserControls
 
         private void ProgressTimer_Tick(object? sender, EventArgs e)
         {
-            if (isSeekingWithMouse)
-                return;
-
             TimeSpan currentTime = ClampToSongLength(audioPlayer.CurrentTime);
+
+            UpdateEqualizerBars();
 
             ProgressSlider.Value = Math.Min(currentTime.TotalSeconds, ProgressSlider.Maximum);
             CurrentTimeText.Text = FormatTime(currentTime);
@@ -605,35 +731,6 @@ namespace musicplayer.View.UserControls
             });
         }
 
-        private void DrawWaveformMountain()
-        {
-            double width = ProgressArea.ActualWidth;
-            double height = ProgressArea.ActualHeight;
-
-            if (width <= 0 || height <= 0 || waveformPoints.Count == 0)
-                return;
-
-            double baseY = height - 14;
-            double maxMountainHeight = height - 20;
-
-            PointCollection points = new PointCollection();
-
-            points.Add(new Point(0, baseY));
-
-            for (int i = 0; i < waveformPoints.Count; i++)
-            {
-                double x = i * (width / Math.Max(1, waveformPoints.Count - 1));
-                double value = Math.Pow(waveformPoints[i], 0.65);
-                double y = baseY - value * maxMountainHeight;
-
-                points.Add(new Point(x, y));
-            }
-
-            points.Add(new Point(width, baseY));
-
-            AmplitudeMountain.Points = points;
-        }
-
         private bool IsSongPlayableInCurrentMode(Song song)
         {
             if (currentAlbum == null)
@@ -665,18 +762,46 @@ namespace musicplayer.View.UserControls
 
         private string GetCurrentPlayerArtPath(Album album)
         {
-            if (album.AlbumArtPaths != null && album.AlbumArtPaths.Count > 0)
-            {
-                if (album.PlayerArtIndex < 0 || album.PlayerArtIndex >= album.AlbumArtPaths.Count)
-                    album.PlayerArtIndex = album.AlbumArtPaths.Count > 1 ? 1 : 0;
+            List<string> availableArt = GetCurrentAvailablePlayerArt(album);
 
-                return album.AlbumArtPaths[album.PlayerArtIndex];
+            if (availableArt.Count == 0)
+                return "";
+
+            if (album.PlayerArtIndex < 0 || album.PlayerArtIndex >= availableArt.Count)
+                album.PlayerArtIndex = 0;
+
+            return availableArt[album.PlayerArtIndex];
+        }
+
+        private List<string> GetCurrentAvailablePlayerArt(Album album)
+        {
+            List<string> availableArt = new List<string>();
+
+            if (currentSong?.AlbumArtPaths != null)
+            {
+                availableArt.AddRange(
+                    currentSong.AlbumArtPaths
+                        .Where(path => !string.IsNullOrWhiteSpace(path) && System.IO.File.Exists(path))
+                );
             }
 
-            if (!string.IsNullOrWhiteSpace(album.BackCoverPath))
-                return album.BackCoverPath;
+            if (album.AlbumArtPaths != null)
+            {
+                availableArt.AddRange(
+                    album.AlbumArtPaths
+                        .Where(path => !string.IsNullOrWhiteSpace(path) && System.IO.File.Exists(path))
+                );
+            }
 
-            return album.CoverPath;
+            if (!string.IsNullOrWhiteSpace(album.BackCoverPath) && System.IO.File.Exists(album.BackCoverPath))
+                availableArt.Add(album.BackCoverPath);
+
+            if (!string.IsNullOrWhiteSpace(album.CoverPath) && System.IO.File.Exists(album.CoverPath))
+                availableArt.Add(album.CoverPath);
+
+            return availableArt
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
         }
 
         private void ProgressArea_MouseEnter(object sender, MouseEventArgs e)
@@ -690,6 +815,7 @@ namespace musicplayer.View.UserControls
             ProgressSlider.Tag = null;
             AmplitudeMountain.Tag = null;
         }
+
 
         private Song GetRandomPlayableSong(List<Song> playableSongs)
         {
@@ -820,6 +946,43 @@ namespace musicplayer.View.UserControls
                 currentIndex = 0;
 
             LoadSong(currentAlbum, playableSongs[currentIndex]);
+        }
+
+        private void UpdateEqualizerBars()
+        {
+            float bassTarget = audioPlayer.IsPlaying ? audioPlayer.BassLevel : 0f;
+            float midTarget = audioPlayer.IsPlaying ? audioPlayer.MidLevel : 0f;
+            float trebleTarget = audioPlayer.IsPlaying ? audioPlayer.TrebleLevel : 0f;
+
+            AnimateEqualizerBar(BassEqBar, bassTarget, 3.0);
+            AnimateEqualizerBar(MidEqBar, midTarget, 2.6);
+            AnimateEqualizerBar(TrebleEqBar, trebleTarget, 4.2);
+        }
+
+        private void AnimateEqualizerBar(Border bar, float level, double boost)
+        {
+            double minHeight = 3;
+            double maxHeight = 78;
+
+            double value = level * boost;
+            value = Math.Max(0.0, Math.Min(1.0, value));
+
+            // Makes smaller values more visible.
+            value = Math.Sqrt(value);
+
+            double targetHeight = minHeight + value * (maxHeight - minHeight);
+
+            DoubleAnimation animation = new DoubleAnimation
+            {
+                To = targetHeight,
+                Duration = TimeSpan.FromMilliseconds(45),
+                EasingFunction = new QuadraticEase
+                {
+                    EasingMode = EasingMode.EaseOut
+                }
+            };
+
+            bar.BeginAnimation(HeightProperty, animation, HandoffBehavior.SnapshotAndReplace);
         }
 
     }

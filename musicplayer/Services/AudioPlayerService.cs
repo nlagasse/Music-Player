@@ -1,31 +1,26 @@
 ﻿using NAudio.Wave;
 
-// Audio playback using NAudio 
 namespace musicplayer.Services
 {
     public class AudioPlayerService : IDisposable
     {
         private WaveOutEvent? outputDevice;
         private AudioFileReader? audioFile;
+        private FrequencyAnalyzerSampleProvider? analyzerProvider;
 
         private bool suppressPlaybackStopped = false;
 
         public event Action? PlaybackStopped;
 
-        public bool IsPlaying
-        {
-            get
-            {
-                return outputDevice?.PlaybackState == PlaybackState.Playing;
-            }
-        }
+        public bool IsPlaying => outputDevice?.PlaybackState == PlaybackState.Playing;
+
+        public float BassLevel => analyzerProvider?.BassLevel ?? 0f;
+        public float MidLevel => analyzerProvider?.MidLevel ?? 0f;
+        public float TrebleLevel => analyzerProvider?.TrebleLevel ?? 0f;
 
         public TimeSpan CurrentTime
         {
-            get
-            {
-                return audioFile?.CurrentTime ?? TimeSpan.Zero;
-            }
+            get => audioFile?.CurrentTime ?? TimeSpan.Zero;
             set
             {
                 if (audioFile != null)
@@ -33,20 +28,11 @@ namespace musicplayer.Services
             }
         }
 
-        public TimeSpan TotalTime
-        {
-            get
-            {
-                return audioFile?.TotalTime ?? TimeSpan.Zero;
-            }
-        }
+        public TimeSpan TotalTime => audioFile?.TotalTime ?? TimeSpan.Zero;
 
         public float Volume
         {
-            get
-            {
-                return audioFile?.Volume ?? 1.0f;
-            }
+            get => audioFile?.Volume ?? 1.0f;
             set
             {
                 if (audioFile != null)
@@ -54,40 +40,20 @@ namespace musicplayer.Services
             }
         }
 
-        public int SampleRate
-        {
-            get
-            {
-                return audioFile?.WaveFormat.SampleRate ?? 0;
-            }
-        }
-
-        public int Channels
-        {
-            get
-            {
-                return audioFile?.WaveFormat.Channels ?? 0;
-            }
-        }
-
-        public int LatencyMilliseconds
-        {
-            get
-            {
-                return outputDevice?.DesiredLatency ?? 0;
-            }
-        }
+        public int SampleRate => audioFile?.WaveFormat.SampleRate ?? 0;
+        public int Channels => audioFile?.WaveFormat.Channels ?? 0;
+        public int LatencyMilliseconds => outputDevice?.DesiredLatency ?? 0;
 
         public void Load(string filePath)
         {
             StopAndDisposeCurrentFile();
 
             audioFile = new AudioFileReader(filePath);
+            analyzerProvider = new FrequencyAnalyzerSampleProvider(audioFile);
 
             outputDevice = new WaveOutEvent();
-            outputDevice.Init(audioFile);
-
             outputDevice.PlaybackStopped += OutputDevice_PlaybackStopped;
+            outputDevice.Init(analyzerProvider);
         }
 
         public void Play()
@@ -137,6 +103,8 @@ namespace musicplayer.Services
                 audioFile.Dispose();
                 audioFile = null;
             }
+
+            analyzerProvider = null;
 
             suppressPlaybackStopped = false;
         }

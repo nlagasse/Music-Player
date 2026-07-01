@@ -7,6 +7,7 @@ using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using System.Windows;
+using System.Security.Cryptography;
 
 namespace musicplayer.Services
 {
@@ -81,6 +82,17 @@ namespace musicplayer.Services
             return album;
         }
 
+        public static Song? CreateSongFromFilePath(string filePath)
+        {
+            if (!File.Exists(filePath))
+                return null;
+
+            if (!MetadataCleanup.IsAudioFile(filePath))
+                return null;
+
+            return CreateSongFromFile(filePath);
+        }
+
         //public void AddAlbumFromFolderPath(string folderPath)
         //{
         //    if (!Directory.Exists(folderPath))
@@ -113,15 +125,51 @@ namespace musicplayer.Services
         //    return album.CoverPath;
         //}
 
-        public static Song? CreateSongFromFilePath(string filePath)
+        private static List<string> ExtractSongArtwork(string songFilePath, TagLib.File tagFile)
         {
-            if (!File.Exists(filePath))
-                return null;
+            List<string> artPaths = new List<string>();
 
-            if (!MetadataCleanup.IsAudioFile(filePath))
-                return null;
+            if (tagFile.Tag.Pictures == null || tagFile.Tag.Pictures.Length == 0)
+                return artPaths;
 
-            return CreateSongFromFile(filePath);
+            string appDataFolder = Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+                "musicplayer",
+                "SongArtwork"
+            );
+
+            Directory.CreateDirectory(appDataFolder);
+
+            string safeSongName = Path.GetFileNameWithoutExtension(songFilePath);
+
+            foreach (TagLib.IPicture picture in tagFile.Tag.Pictures)
+            {
+                if (picture.Data == null || picture.Data.Data == null || picture.Data.Data.Length == 0)
+                    continue;
+
+                string extension = ".jpg";
+
+                if (picture.MimeType != null &&
+                    picture.MimeType.Contains("png", StringComparison.OrdinalIgnoreCase))
+                {
+                    extension = ".png";
+                }
+
+                string hash = Convert.ToHexString(
+                    System.Security.Cryptography.SHA1.HashData(
+                        System.Text.Encoding.UTF8.GetBytes(songFilePath + picture.Description + artPaths.Count)
+                    )
+                );
+
+                string outputPath = Path.Combine(appDataFolder, hash + extension);
+
+                if (!System.IO.File.Exists(outputPath))
+                    System.IO.File.WriteAllBytes(outputPath, picture.Data.Data);
+
+                artPaths.Add(outputPath);
+            }
+
+            return artPaths;
         }
 
         private static Song CreateSongFromFile(string songFile)
@@ -153,7 +201,8 @@ namespace musicplayer.Services
                     ReleaseYear = tagFile.Tag.Year,
                     FilePath = songFile,
                     TrackNumber = tagFile.Tag.Track,
-                    Duration = tagFile.Properties.Duration
+                    Duration = tagFile.Properties.Duration,
+                    AlbumArtPaths = ExtractSongArtwork(songFile, tagFile)
                 };
             }
             catch
@@ -165,7 +214,8 @@ namespace musicplayer.Services
                     ReleaseYear = 0,
                     FilePath = songFile,
                     TrackNumber = 0,
-                    Duration = TimeSpan.Zero
+                    Duration = TimeSpan.Zero,
+                    AlbumArtPaths = new List<string>()
                 };
             }
         }

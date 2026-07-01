@@ -21,11 +21,16 @@
             </Grid.ColumnDefinitions>
 
             <Border Name="AlbumInfoBorder"
-                    Grid.Row="0"
-                    Grid.Column="0"
-                    Style="{StaticResource CardStyle}">
+                Grid.Row="0"
+                Grid.Column="0"
+                Style="{StaticResource CardStyle}"
+                PreviewMouseDown="AlbumInfoBorder_PreviewMouseDown">
 
                 <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
                     <TextBlock Name="SystemDataText"
                                Grid.RowSpan="3"
                                HorizontalAlignment="Stretch"
@@ -40,7 +45,8 @@
                                IsHitTestVisible="False"
                                Panel.ZIndex="0"/>
 
-                    <Grid Panel.ZIndex="1">
+                    <Grid Grid.Row="0"
+                          Panel.ZIndex="1">
                         <Grid.RowDefinitions>
                             <RowDefinition Height="Auto"/>
                             <RowDefinition Height="Auto"/>
@@ -105,6 +111,21 @@
                                        Margin="55,0,0,0"/>
                         </StackPanel>
                     </Grid>
+                    <Button Grid.Row="1"
+                        Name="AlbumInfoPlayButton"
+                        Width="54"
+                        Height="54"
+                        Padding="12"
+                        Margin="0,12,0,0"
+                        HorizontalAlignment="Left"
+                        VerticalAlignment="Bottom"
+                        Click="AlbumInfoPlayButton_Click"
+                        Style="{StaticResource PlayerButtonStyle}"
+                        ToolTip="Play album">
+
+                        <Image Source="/assets/icons/play-256.png"
+                        Stretch="Uniform"/>
+                    </Button>
                 </Grid>
             </Border>
 

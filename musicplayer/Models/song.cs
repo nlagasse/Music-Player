@@ -11,6 +11,8 @@ namespace musicplayer.Models
         public TimeSpan Duration { get; set; }
         public bool IsLiked { get; set; }
 
+        public List<string> AlbumArtPaths { get; set; } = new List<string>();
+
         public string DisplayDuration
         {
             get

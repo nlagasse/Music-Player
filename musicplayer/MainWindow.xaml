@@ -9,7 +9,7 @@
         mc:Ignorable="d" WindowStyle="None"
         ResizeMode="CanResize"
         Foreground="White"
-        FontFamily="pack://applications:,,,/Assets/Fonts/#StretchPro"
+        FontFamily="pack://application:,,,/Assets/Fonts/#StretchPro"
         PreviewKeyDown="Window_PreviewKeyDown"
         AllowDrop="True"
         PreviewDragOver="Window_PreviewDragOver"
@@ -77,7 +77,7 @@
             </Grid>
 
             <!-- Interactive Bar -->
-            <userControls:PlayerBar x:Name="PlayerBarControl" Grid.Row="2" Loaded="PlayerBarControl_Loaded"/>
+            <userControls:PlayerBar x:Name="PlayerBarControl" Grid.Row="2"/>
 
             <!-- Secondary album art overlay -->
             <Border x:Name="PlayerArtOverlayBorder"

@@ -43,6 +43,10 @@ namespace musicplayer.View.UserControls
 
         public event Action? AlbumRenamed;
 
+        private Album? albumBeingTitleEdited;
+
+        public event Action<Album>? AlbumPlayRequested;
+
         public AlbumCard()
         {
             InitializeComponent();
@@ -51,6 +55,37 @@ namespace musicplayer.View.UserControls
             systemDataTimer.Interval = TimeSpan.FromMilliseconds(250);
             systemDataTimer.Tick += SystemDataTimer_Tick;
             systemDataTimer.Start();
+        }
+
+        private void AlbumInfoPlayButton_Click(object sender, RoutedEventArgs e)
+        {
+            if (isEditingAlbumTitle)
+                CommitAlbumTitleEdit();
+
+            if (currentAlbum == null)
+                return;
+
+            AlbumPlayRequested?.Invoke(currentAlbum);
+
+            e.Handled = true;
+        }
+
+        private void AlbumInfoBorder_PreviewMouseDown(object sender, MouseButtonEventArgs e)
+        {
+            if (!isEditingAlbumTitle)
+                return;
+
+            if (e.OriginalSource is DependencyObject source)
+            {
+                // Do not commit just because the user clicked inside the edit box.
+                if (FindParent<TextBox>(source) != null)
+                    return;
+            }
+
+            CommitAlbumTitleEdit();
+
+            // Do not set e.Handled = true.
+            // This lets other clicks still do their normal behavior.
         }
 
         private void AlbumCover_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
@@ -137,6 +172,11 @@ namespace musicplayer.View.UserControls
 
         public void DisplayAlbum(Album? album)
         {
+            if (isEditingAlbumTitle && albumBeingTitleEdited != null)
+            {
+                CommitAlbumTitleEdit();
+            }
+
             currentAlbum = album;
 
             CloseAlbumArtPopup();
@@ -723,7 +763,7 @@ namespace musicplayer.View.UserControls
             if (currentAlbum == null)
                 return;
 
-            albumTitleBeforeEdit = currentAlbum.Title;
+            albumBeingTitleEdited = currentAlbum;
             isEditingAlbumTitle = true;
 
             AlbumTitleEdit.Text = currentAlbum.Title;
@@ -753,15 +793,17 @@ namespace musicplayer.View.UserControls
 
         private void AlbumTitleEdit_LostFocus(object sender, RoutedEventArgs e)
         {
-            if (!isEditingAlbumTitle)
-                return;
-
-            CancelAlbumTitleEdit();
+            CommitAlbumTitleEdit();
         }
 
         private void CommitAlbumTitleEdit()
         {
-            if (currentAlbum == null)
+            if (!isEditingAlbumTitle)
+                return;
+
+            Album? albumToEdit = albumBeingTitleEdited;
+
+            if (albumToEdit == null)
             {
                 EndAlbumTitleEdit();
                 return;
@@ -769,38 +811,34 @@ namespace musicplayer.View.UserControls
 
             string newTitle = AlbumTitleEdit.Text.Trim();
 
-            if (string.IsNullOrWhiteSpace(newTitle))
+            if (!string.IsNullOrWhiteSpace(newTitle) && albumToEdit.Title != newTitle)
             {
-                AlbumTitleEdit.Text = albumTitleBeforeEdit;
-                AlbumTitle.Text = albumTitleBeforeEdit;
-                EndAlbumTitleEdit();
-                return;
+                albumToEdit.Title = newTitle;
+                albumToEdit.HasCustomTitle = true;
+
+                LibraryStorage.SaveLibrary();
+
+                AlbumRenamed?.Invoke();
             }
 
-            currentAlbum.Title = newTitle;
-
-            if (newTitle != albumTitleBeforeEdit)
-                currentAlbum.HasCustomTitle = true;
-
-            AlbumTitle.Text = currentAlbum.Title;
-
-            LibraryStorage.SaveLibrary();
-            AlbumRenamed?.Invoke();
-
             EndAlbumTitleEdit();
+
+            if (currentAlbum == albumToEdit)
+                DisplayAlbum(albumToEdit);
         }
 
         private void CancelAlbumTitleEdit()
         {
-            AlbumTitleEdit.Text = albumTitleBeforeEdit;
-            AlbumTitle.Text = albumTitleBeforeEdit;
-
             EndAlbumTitleEdit();
+
+            if (currentAlbum != null)
+                DisplayAlbum(currentAlbum);
         }
 
         private void EndAlbumTitleEdit()
         {
             isEditingAlbumTitle = false;
+            albumBeingTitleEdited = null;
 
             AlbumTitleEdit.Visibility = Visibility.Collapsed;
             AlbumTitle.Visibility = Visibility.Visible;

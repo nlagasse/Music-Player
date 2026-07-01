@@ -388,6 +388,7 @@ namespace musicplayer.View.UserControls
                     existingSong.ReleaseYear = refreshedSong.ReleaseYear;
                     existingSong.TrackNumber = refreshedSong.TrackNumber;
                     existingSong.Duration = refreshedSong.Duration;
+                    existingSong.AlbumArtPaths = refreshedSong.AlbumArtPaths;
 
                     existingSong.IsLiked = wasLiked;
                 }
